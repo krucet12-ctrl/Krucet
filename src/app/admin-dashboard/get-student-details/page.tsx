@@ -312,7 +312,7 @@ export default function GetStudentDetailsPage() {
     const logoUrl = window.location.origin + UNIVERSITY_LOGO;
     const studentRoll = String(student["Reg.No"] || student["roll"] || rollNo);
     const studentName = String(student["Name of the Student"] || student["name"] || student["Name"] || "N/A");
-    const branch = String(student["Branch"] || student["Department"] || student["branch"] || branch || "N/A");
+    const studentBranch = String(student["Branch"] || student["Department"] || student["branch"] || branch || "N/A");
     const regulation = String(student["Regulation"] || student["regulation"] || "N/A");
     const currentDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -320,7 +320,7 @@ export default function GetStudentDetailsPage() {
     const keyFields = [
       { label: "Roll Number", value: studentRoll },
       { label: "Name", value: studentName },
-      { label: "Branch", value: branch },
+      { label: "Branch", value: studentBranch },
       { label: "Regulation", value: regulation },
       { label: "Batch", value: batch.toUpperCase() },
       { label: "Course", value: courseType === "BTech" ? "B.Tech" : "M.Tech" },

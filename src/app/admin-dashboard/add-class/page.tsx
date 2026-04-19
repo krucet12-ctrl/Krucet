@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Edit3, Save, Search, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Edit3, Save, Search, RefreshCw, ShieldCheck, ChevronDown } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -611,7 +611,7 @@ function CheckClassTab() {
                             </button>
                         </div>
 
-                        {((!hasChanged && selectedRegulation) || (lateralExists && !selectedLateralRegulation)) && (
+                        {(!hasChanged && selectedRegulation) && (
                             <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 bg-slate-300 rounded-full inline-block"></span>
                                 Select a different regulation to enable the update button.
