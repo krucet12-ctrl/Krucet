@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  
+  --color-accent-50: #eef2ff;
+  --color-accent-500: #6366f1;
+  --color-accent-600: #4f46e5;
+  --color-accent-700: #4338ca;
+}
+
+:root {
+  --background: #f4f7f9;
+  --foreground: #0f172a;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-inter: var(--font-inter);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f172a;
+    --foreground: #f8fafc;
+  }
+}
+
+body {
+  background: var(--background);
+  background-image: radial-gradient(circle at 50% 0%, #ffffff 0%, transparent 70%);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: var(--font-inter), sans-serif;
+}
+
+@layer components {
+  /* Cards */
+  .premium-card {
+    @apply bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100/50 relative overflow-hidden p-6 sm:p-8;
+  }
+  
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center bg-gradient-to-r from-blue-700 to-indigo-600 hover:from-blue-800 hover:to-indigo-700 text-white font-medium text-sm sm:text-base py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] transform transition-all duration-300 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center bg-white border border-gray-200 text-gray-700 hover:text-blue-700 hover:border-blue-200 font-medium text-sm sm:text-base py-2.5 px-6 rounded-xl shadow-sm hover:bg-gray-50/50 hover:shadow-md hover:scale-[1.02] transform transition-all duration-300 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-medium text-sm sm:text-base py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] transform transition-all duration-300 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+  }
+  
+  /* Inputs */
+  .input-premium {
+    @apply w-full px-4 py-3 bg-gray-50/50 border border-gray-200/80 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all duration-200 outline-none hover:bg-white text-gray-800 text-sm sm:text-base placeholder-gray-400 shadow-sm;
+  }
+  
+  /* Typography */
+  .label-premium {
+    @apply block text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wider;
+  }
+  .heading-premium {
+    @apply text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-800 mb-4 tracking-tight;
+  }
+  
+  /* Page Container */
+  .page-container {
+    @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12;
+  }
+}
+
+@media (max-width: 768px) {
+  .print-btn,
+  .download-btn {
+    display: none !important;
+  }
+}
+
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  html, body { width: 210mm !important; min-height: 297mm !important; }
+  body { background: #ffffff !important; color: #000000 !important; }
+  .print-container, .cmm-sheet { width: 210mm !important; max-width: 210mm !important; }
+  .print-hidden, .navbar, nav, button, input, .input-premium, .btn-primary, .btn-secondary { display: none !important; }
+  table, th, td { page-break-inside: avoid; }
+  .premium-card, .page-container { box-shadow: none !important; border: none !important; background: transparent !important; }
+}
