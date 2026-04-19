@@ -9,6 +9,7 @@ import {
     getFacultyMembers, addFacultyMember, updateFacultyMember, deleteFacultyMember, updateFacultyOrder
 } from '@/lib/cmsService';
 import { auth, storage } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -149,7 +150,11 @@ export default function UniversityContentAdmin() {
     const [dragOverFacultyId, setDragOverFacultyId] = useState<string | null>(null);
 
     useEffect(() => {
-        const unsub = auth.onAuthStateChanged((u) => {
+        if (!auth) {
+            router.replace('/admin-login');
+            return;
+        }
+        const unsub = onAuthStateChanged(auth, (u) => {
             if (!u) {
                 router.replace('/admin-login');
             } else {

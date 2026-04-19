@@ -46,24 +46,30 @@ export const formatPercentage = (percentage: number): string => {
 
 // Error Handling Utilities
 export const handleFirebaseError = (error: unknown): string => {
-  if (error instanceof Error && error.message === 'Firebase not configured') {
-    return 'Firebase is not properly configured. Please check your setup.';
-  }
+  const msg = typeof error === 'string' ? error : (error instanceof Error ? error.message : '');
+  
+  // Extract error code from Firebase messages like "Firebase: Error (auth/invalid-api-key)."
+  const codeMatch = msg.match(/\(([^)]+)\)/);
+  const code = codeMatch ? codeMatch[1] : msg;
 
-  switch (error) {
+  switch (code) {
     case 'auth/user-not-found':
     case 'auth/wrong-password':
-      return 'Invalid email or password';
+    case 'auth/invalid-credential':
+      return 'Invalid email or password. Please check your credentials.';
     case 'auth/invalid-email':
-      return 'Invalid email format';
+      return 'Invalid email format.';
     case 'auth/too-many-requests':
       return 'Too many failed attempts. Please try again later.';
     case 'auth/invalid-api-key':
-      return 'Firebase configuration error. Please check your API keys.';
+      return 'Firebase API key is invalid. Please update the API key in .env.local from the Firebase Console.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your internet connection.';
     default:
-      return 'An error occurred. Please try again.';
+      return msg || 'An unexpected error occurred. Please try again.';
   }
 };
+
 
 // Date and Time Utilities
 export const formatDate = (date: Date): string => {

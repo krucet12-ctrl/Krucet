@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -16,40 +16,23 @@ const AdminLogin: React.FC = () => {
 
   // Check if user is already logged in
   useEffect(() => {
-    console.log('Checking auth state...');
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      console.log('Auth state changed:', user ? 'User logged in' : 'No user');
-      if (user) {
-        router.push('/admin-dashboard');
-      }
+    if (!auth) return;
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) router.push('/admin-dashboard');
     });
-
     return () => unsubscribe();
   }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Starting login process...');
     setIsLoading(true);
     setError('');
 
     try {
-      console.log('Attempting to sign in with Firebase...');
-
-      // Add a timeout to prevent infinite pending
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), 30000); // 30 seconds
-      });
-
-      const signInPromise = signInWithEmailAndPassword(auth, email, password);
-
-      const result = await Promise.race([signInPromise, timeoutPromise]);
-      console.log('Sign in successful:', result);
-
+      await signInWithEmailAndPassword(auth, email, password);
       router.push('/admin-dashboard');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error('Login error:', message);
       setError(handleFirebaseError(message));
     } finally {
       setIsLoading(false);

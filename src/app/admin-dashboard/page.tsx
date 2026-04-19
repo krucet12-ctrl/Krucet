@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { signOut, User } from 'firebase/auth';
+import { signOut, User, onAuthStateChanged } from 'firebase/auth';
 
 interface SubjectMarks {
   subCode: string;
@@ -33,7 +33,11 @@ export default function AdminPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
+    if (!auth) {
+      router.replace('/admin-login');
+      return;
+    }
+    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
       if (user) {
         setAuthenticated(true);
         setUser(user);

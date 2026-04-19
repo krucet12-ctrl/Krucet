@@ -141,66 +141,34 @@ export const getCurriculumMaxMarks = async (
   const result: Record<string, number> = {};
   try {
     if (!courseType || !regulation || !department || !semester) {
-      console.warn('getCurriculumMaxMarks missing required parameters');
       return result;
     }
 
-    console.log('=== getCurriculumMaxMarks DEBUG ===');
-    console.log('courseType:', courseType);
-    console.log('regulation:', regulation);
-    console.log('department:', department);
-    console.log('semester:', semester);
-
     // Try multiple path variations to find the curriculum
     const pathVariations = [
-      // Try with courseType prefix (e.g., BTech_R20)
       { collection: 'curriculum', doc: `${courseType}_${regulation.toUpperCase()}`, subcollection: department.toUpperCase(), subdoc: semester },
-      // Try without courseType prefix (e.g., R20)
       { collection: 'curriculum', doc: regulation.toUpperCase(), subcollection: department.toUpperCase(), subdoc: semester },
-      // Try with different semester formats
       { collection: 'curriculum', doc: `${courseType}_${regulation.toUpperCase()}`, subcollection: department.toUpperCase(), subdoc: `Sem${semester.replace(/SEM/i, '')}` },
     ];
 
-    let found = false;
     for (const path of pathVariations) {
       const curDoc = doc(db, path.collection, path.doc, path.subcollection, path.subdoc);
-      console.log('Trying path:', path.collection, '/', path.doc, '/', path.subcollection, '/', path.subdoc);
-      
       const curSnap = await getDoc(curDoc);
       if (curSnap.exists()) {
-        console.log('Found curriculum doc at:', path.collection, '/', path.doc, '/', path.subcollection, '/', path.subdoc);
-        
-        // Try both "Subjects" and "subjects" field names
         let subjects = curSnap.data().Subjects || curSnap.data().subjects || [];
-        
         if (!Array.isArray(subjects)) {
-          // Maybe it's stored as a map with numeric keys
           subjects = Object.values(curSnap.data() || {});
         }
-        
-        console.log('Found subjects:', subjects.length);
-        
         for (const subject of subjects) {
           if (!subject) continue;
           const code = normalizeSubjectCode(subject.code || subject.subjectCode || subject.subject_code);
           if (!code) continue;
-          
           const maxMarks = Number(subject.maxMarks || subject.max_marks || subject.maxmarks || 100);
-          console.log('Subject:', code, '-> maxMarks:', maxMarks);
           result[code] = Number.isNaN(maxMarks) ? 100 : maxMarks;
         }
-        found = true;
         break;
       }
     }
-
-    if (!found) {
-      console.warn(`Curriculum not found for any path variation: ${courseType}_${regulation}/${department}/${semester}`);
-    } else {
-      console.log('Final curriculum map:', result);
-    }
-    console.log('=== END getCurriculumMaxMarks DEBUG ===');
-
   } catch (error) {
     console.error('Error getting curriculum max marks:', error);
   }
@@ -209,6 +177,7 @@ export const getCurriculumMaxMarks = async (
 };
 
 // Student Operations
+
 export const saveStudentResult = async (studentData: StudentData, subjectMaxMarks: Record<string, number> = {}): Promise<void> => {
   return retryOperation(async () => {
     const studentRef = doc(db, 'students', studentData.roll);

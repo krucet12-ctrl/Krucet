@@ -55,10 +55,6 @@ async function buildCurriculumMap(
         const rawMax = s.maxMarks ?? s.max_marks ?? s.MaxMarks ?? null;
         const maxMarks = rawMax !== null && Number(rawMax) > 0 ? Number(rawMax) : null;
 
-        if (maxMarks === null) {
-          console.warn(`⚠️  maxMarks missing for "${rawCode}" in ${regKey}/${deptKey}/${semKey}. Defaulting to 100.`);
-        }
-
         map.set(rawCode, {
           code:     rawCode,
           credits:  Number(s.Credit || s.credits || 0),
@@ -78,9 +74,6 @@ export async function POST(req: NextRequest) {
     if (!rawRoll) return NextResponse.json({ error: 'Missing rollNo' }, { status: 400 });
 
     const rollNo = safeTrim(rawRoll).toUpperCase();
-
-    console.log('🔍 FETCHING CGPA (Flat Architecture)');
-    console.log('Roll Number:', rollNo);
 
     // 1. Fetch student document
     const studentRef  = doc(db, 'students', rollNo);
@@ -106,14 +99,7 @@ export async function POST(req: NextRequest) {
     const regulation  = await getRegulationForRollNumber(rollNo);
     const courseType  = (student as any).courseType || 'BTech';
 
-    console.log(`📍 CGPA: Roll=${rollNo}, Batch=${batch}, Dept=${department}, Reg=${regulation}, Course=${courseType}`);
-
-    // 3. Build curriculum map ONCE — O(1) lookups for every subject
     const curriculumMap = await buildCurriculumMap(courseType, regulation || '', department);
-
-    if (curriculumMap.size === 0) {
-      console.warn(`⚠️  Curriculum map empty for ${courseType}_${regulation}/${department}. maxMarks will default to 100.`);
-    }
 
     // 4. Map subject results → semester buckets
     const resultsData: Record<string, any> = {};
@@ -123,7 +109,7 @@ export async function POST(req: NextRequest) {
       const cur = curriculumMap.get(normalizedCode);
 
       if (!cur) {
-        console.warn(`⚠️  Subject "${normalizedCode}" not found in curriculum map.`);
+        // Subject not in curriculum — use defaults
       }
 
       const semKey   = cur?.semKey   ?? 'Unknown';

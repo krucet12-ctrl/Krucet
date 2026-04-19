@@ -8,7 +8,6 @@ if (!admin.apps.length) {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim().replace(/^"(.*)"$/, '$1');
 
     const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
-    console.log("Private key exists:", !!rawPrivateKey);
 
     let privateKey = rawPrivateKey
       ?.trim()
@@ -44,7 +43,6 @@ if (!admin.apps.length) {
         projectId,
       });
       isInitialized = true;
-      console.log("✅ Firebase Admin initialized with project:", projectId);
     }
   } catch (error) {
     console.error('❌ Firebase Admin initialization error:', error);

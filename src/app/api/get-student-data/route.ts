@@ -88,7 +88,6 @@ export async function POST(req: NextRequest) {
     const studentSnap = await getDoc(studentRef);
 
     if (!studentSnap.exists()) {
-      console.log(`❌ Student document 'students/${rollNo}' NOT found.`);
       return NextResponse.json({ error: 'No results found for this roll number.' }, { status: 404 });
     }
 
@@ -100,14 +99,7 @@ export async function POST(req: NextRequest) {
     const regulation = await getRegulationForRollNumber(rollNo);
     const courseType: string = studentData.courseType || 'BTech';
 
-    console.log(`📍 Resolved: Roll=${rollNo}, Batch=${batch}, Dept=${department}, Reg=${regulation}, Course=${courseType}`);
-
-    // 4. Build curriculum map ONCE (parallel fetch, then flat O(1) lookups)
     const curriculumMap = await buildCurriculumMap(courseType, regulation || '', department);
-
-    if (curriculumMap.size === 0) {
-      console.warn(`⚠️  Curriculum map is empty for ${courseType}_${regulation}/${department}. maxMarks will default to 100.`);
-    }
 
     // 5. Map subject results → semester buckets
     const resultsData: Record<string, any> = {};
@@ -117,7 +109,7 @@ export async function POST(req: NextRequest) {
       const cur = curriculumMap.get(normalizedCode);
 
       if (!cur) {
-        console.warn(`⚠️  Subject "${normalizedCode}" not found in curriculum map.`);
+        // Subject not in curriculum — use defaults
       }
 
       const semKey  = cur?.semKey      ?? 'Unknown';

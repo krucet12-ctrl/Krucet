@@ -23,13 +23,13 @@ const Index = () => {
         getUniversityInfo(),
         getOfficials()
       ]);
-
       if (info) setUnivInfo(info);
       setOfficials(off);
       setLoading(false);
     }
     load();
   }, []);
+
 
   if (loading) {
     return (

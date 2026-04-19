@@ -1,8 +1,8 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, enableNetwork } from 'firebase/firestore';
-import { getDatabase } from 'firebase/database';
-import { getStorage } from 'firebase/storage';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore, connectFirestoreEmulator, enableNetwork } from 'firebase/firestore';
+import { getDatabase, Database } from 'firebase/database';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,42 +14,33 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase only if no apps exist
-let app;
-try {
-  app = initializeApp(firebaseConfig);
-} catch {
-  // If app already exists, get the existing one
-  const { getApps, getApp } = await import('firebase/app');
-  const apps = getApps();
-  app = apps.length > 0 ? getApp() : initializeApp(firebaseConfig);
-}
+// Always initialize — let Firebase itself report credential errors at usage time
+const app: FirebaseApp = getApps().length === 0
+  ? initializeApp(firebaseConfig)
+  : getApp();
 
-const auth = getAuth(app);
-const db = getFirestore(app);
-const rtdb = getDatabase(app);
-const storage = getStorage(app);
+const auth: Auth = getAuth(app);
+const db: Firestore = getFirestore(app);
+const rtdb: Database = getDatabase(app);
+const storage: FirebaseStorage = getStorage(app);
 
 // Connect to emulator in development if needed
 if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIRESTORE_EMULATOR === 'true') {
   try {
     connectFirestoreEmulator(db, 'localhost', 8080);
-    console.log('Connected to Firestore emulator');
   } catch {
-    console.log('Firestore emulator already connected or not available');
+    // already connected
   }
 }
 
-// Helper function to check Firebase connectivity
 export const checkFirebaseConnection = async () => {
   try {
     await enableNetwork(db);
     return true;
   } catch {
-    console.error('Firebase connection error');
     return false;
   }
 };
 
-export { auth, db, rtdb, storage };
-export default app; 
+export { app, auth, db, rtdb, storage };
+export default app;

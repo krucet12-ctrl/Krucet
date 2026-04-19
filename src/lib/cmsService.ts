@@ -104,6 +104,8 @@ export const getUniversityInfo = async (): Promise<UniversityInfo | null> => {
         return cache.universityInfo.data;
     }
 
+    if (!db) return null;
+
     const docRef = doc(db, UNIV_INFO_COL_NAME, 'info');
     const snap = await getDoc(docRef);
     const data = snap.exists() ? (snap.data() as UniversityInfo) : null;
@@ -113,6 +115,7 @@ export const getUniversityInfo = async (): Promise<UniversityInfo | null> => {
 };
 
 export const updateUniversityInfo = async (data: Partial<UniversityInfo>) => {
+    if (!db) return;
     const docRef = doc(db, UNIV_INFO_COL_NAME, 'info');
     await setDoc(docRef, data, { merge: true });
     clearCache('universityInfo');
@@ -123,6 +126,8 @@ export const getOfficials = async (): Promise<Official[]> => {
     if (cache.officials && isCacheValid(cache.officials.timestamp)) {
         return cache.officials.data;
     }
+
+    if (!db) return [];
 
     const colRef = collection(db, OFFICIALS_COL_NAME);
     const snap = await getDocs(colRef);
@@ -140,6 +145,7 @@ export const getOfficials = async (): Promise<Official[]> => {
 };
 
 export const addOfficial = async (data: Omit<Official, 'id'>): Promise<string> => {
+    if (!db) throw new Error('Firestore not initialized');
     const colRef = collection(db, OFFICIALS_COL_NAME);
     const docRef = await addDoc(colRef, data);
     clearCache('officials');
@@ -147,18 +153,21 @@ export const addOfficial = async (data: Omit<Official, 'id'>): Promise<string> =
 };
 
 export const updateOfficial = async (id: string, data: Partial<Official>) => {
+    if (!db) return;
     const docRef = doc(db, OFFICIALS_COL_NAME, id);
     await updateDoc(docRef, data);
     clearCache('officials');
 };
 
 export const deleteOfficial = async (id: string) => {
+    if (!db) return;
     const docRef = doc(db, OFFICIALS_COL_NAME, id);
     await deleteDoc(docRef);
     clearCache('officials');
 };
 
 export const updateOfficialsOrder = async (updates: { id: string, order: number }[]) => {
+    if (!db) return;
     const batch = writeBatch(db);
     updates.forEach(({ id, order }) => {
         const docRef = doc(db, OFFICIALS_COL_NAME, id);
@@ -173,6 +182,8 @@ export const getDepartments = async (): Promise<DepartmentDetails[]> => {
     if (cache.departments && isCacheValid(cache.departments.timestamp)) {
         return cache.departments.data;
     }
+
+    if (!db) return [];
 
     const colRef = collection(db, DEPTS_COL_NAME);
     const snap = await getDocs(colRef);
@@ -189,6 +200,8 @@ export const getDepartmentById = async (id: string): Promise<DepartmentDetails |
         if (found) return found;
     }
 
+    if (!db) return null;
+
     const docRef = doc(db, DEPTS_COL_NAME, id);
     const snap = await getDoc(docRef);
     if (snap.exists()) return { id: snap.id, ...snap.data() } as DepartmentDetails;
@@ -196,12 +209,14 @@ export const getDepartmentById = async (id: string): Promise<DepartmentDetails |
 };
 
 export const updateDepartment = async (id: string, data: Partial<DepartmentDetails>) => {
+    if (!db) return;
     const docRef = doc(db, DEPTS_COL_NAME, id);
     await setDoc(docRef, data, { merge: true }); // allow creating if not exists during migration
     clearCache('departments');
 };
 
 export const deleteDepartment = async (id: string) => {
+    if (!db) return;
     const docRef = doc(db, DEPTS_COL_NAME, id);
     await deleteDoc(docRef);
     clearCache('departments');
@@ -214,6 +229,7 @@ export const getFacultyMembers = async (departmentId?: string): Promise<FacultyM
     if (cache.facultyMembers && isCacheValid(cache.facultyMembers.timestamp)) {
         allFaculty = cache.facultyMembers.data;
     } else {
+        if (!db) return [];
         const colRef = collection(db, FACULTY_COL_NAME);
         const q = query(colRef, orderBy("order", "asc"));
         const snap = await getDocs(q);
@@ -231,6 +247,7 @@ export const getFacultyMembers = async (departmentId?: string): Promise<FacultyM
 };
 
 export const addFacultyMember = async (data: Omit<FacultyMember, 'id'>) => {
+    if (!db) return;
     const colRef = collection(db, FACULTY_COL_NAME);
     const facultyData = {
         ...data,
@@ -243,6 +260,7 @@ export const addFacultyMember = async (data: Omit<FacultyMember, 'id'>) => {
 };
 
 export const updateFacultyMember = async (id: string, data: Partial<FacultyMember>) => {
+    if (!db) return;
     const docRef = doc(db, FACULTY_COL_NAME, id);
     const updateData = {
         ...data,
@@ -253,12 +271,14 @@ export const updateFacultyMember = async (id: string, data: Partial<FacultyMembe
 };
 
 export const deleteFacultyMember = async (id: string) => {
+    if (!db) return;
     const docRef = doc(db, FACULTY_COL_NAME, id);
     await deleteDoc(docRef);
     clearCache('facultyMembers');
 };
 
 export const updateFacultyOrder = async (updates: { id: string, order: number }[]) => {
+    if (!db) return;
     const batch = writeBatch(db);
     updates.forEach(({ id, order }) => {
         const docRef = doc(db, FACULTY_COL_NAME, id);
@@ -267,4 +287,3 @@ export const updateFacultyOrder = async (updates: { id: string, order: number }[
     await batch.commit();
     clearCache('facultyMembers');
 };
-
