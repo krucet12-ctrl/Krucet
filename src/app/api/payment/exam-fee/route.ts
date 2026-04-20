@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../../../../lib/firebase';
+import { adminDb } from '../../../../lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +21,12 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const duQuery = query(collection(db, 'examFees'), where('duNumber', '==', duNumber));
-        const duSnapshot = await getDocs(duQuery);
+        // Check for duplicate DU Number using Admin SDK
+        const duSnapshot = await adminDb
+            .collection('examFees')
+            .where('duNumber', '==', duNumber)
+            .get();
+
         if (!duSnapshot.empty) {
             return NextResponse.json(
                 { success: false, error: 'This DU Number has already been used for an exam fee submission' },
@@ -37,11 +41,13 @@ export async function POST(req: NextRequest) {
             feeType,
             duNumber,
             paymentProofURL: paymentProofLink,
-            uploadedAt: serverTimestamp(),
+            paymentProofLink,
+            uploadedAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             status: 'pending',
         };
 
-        const docRef = await addDoc(collection(db, 'examFees'), paymentData);
+        const docRef = await adminDb.collection('examFees').add(paymentData);
 
         return NextResponse.json({
             success: true,

@@ -17,19 +17,45 @@ interface PaymentRecord {
     rollNumber: string;
     studentName: string;
     duNumber: string;
-    semester?: string;
+    // Tuition fee fields
+    yearOfFee?: number | string;
+    // Exam fee fields
+    semester?: string | number;
+    feeType?: string;
+    // Legacy / shared
     academicYear?: string;
     paymentType?: string;
     status: 'pending' | 'verified' | 'rejected';
     paymentProofURL?: string;
-    paymentProofLink?: string; // from new system
+    paymentProofLink?: string;
     rejectionReason?: string;
     rejectionComment?: string;
     collection: string;
     uploadedAt: string;
-    // Firestore Timestamp or ISO string
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     createdAt?: any;
+}
+
+/** Returns a human-readable ordinal suffix (1st, 2nd, 3rd, 4th). */
+function ordinal(n: number): string {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+/** Builds a meaningful payment label from a record's fields. */
+function getPaymentLabel(rec: PaymentRecord): string {
+    if (rec.collection === 'tuitionFeePayments') {
+        const year = rec.yearOfFee ? Number(rec.yearOfFee) : null;
+        return year ? `Tuition Fee – ${ordinal(year)} Year` : 'Tuition Fee';
+    }
+    if (rec.collection === 'examFees') {
+        const parts: string[] = ['Exam Fee'];
+        if (rec.semester) parts.push(`Sem ${rec.semester}`);
+        if (rec.feeType) parts.push(`(${rec.feeType})`);
+        return parts.join(' – ');
+    }
+    return rec.paymentType || 'Payment';
 }
 
 /** Safely formats a Firestore Timestamp, seconds object, or ISO string. */
@@ -238,76 +264,93 @@ export default function CheckPaymentStatus() {
 
                     {records.length > 0 && (
                         <div className="animate-fade-in-up border-t border-slate-100 pt-8">
-                            <h3 className="text-lg font-extrabold text-slate-800 mb-5">Payment Records</h3>
+                            <h3 className="text-lg font-extrabold text-slate-800 mb-5">
+                                Payment Records
+                                <span className="ml-2 text-sm font-semibold text-slate-400">({records.length})</span>
+                            </h3>
 
-                            <div className="space-y-4">
+                            {/* ── 2-Column Grid ── */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {records.map((rec) => (
-                                    <div key={rec.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                                    <div
+                                        key={rec.id}
+                                        className={`bg-white rounded-2xl shadow-sm border flex flex-col justify-between overflow-hidden
+                                            ${rec.status === 'verified' ? 'border-t-4 border-t-emerald-500 border-slate-200' :
+                                              rec.status === 'rejected' ? 'border-t-4 border-t-red-500 border-slate-200' :
+                                              'border-t-4 border-t-amber-400 border-slate-200'}`}
+                                    >
+                                        <div className="p-5 flex flex-col gap-4 flex-1">
+
+                                            {/* Top: Student Info + DU Number */}
+                                            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                                                 <div>
-                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 block mb-0.5">Student Info</span>
-                                                    <span className="font-bold text-slate-800">{rec.studentName} ({rec.rollNumber})</span>
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1">Student Info</span>
+                                                    <span className="font-bold text-slate-800 leading-tight block">{rec.studentName}</span>
+                                                    <span className="text-xs text-slate-500 font-mono mt-0.5 block">{rec.rollNumber}</span>
                                                 </div>
                                                 <div>
-                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 block mb-0.5">DU Number</span>
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1">DU Number</span>
                                                     <span className="font-mono font-bold text-indigo-600">{(rec.duNumber || 'N/A').toUpperCase()}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 block mb-0.5">Semester</span>
-                                                    <span className="font-bold text-slate-800">{rec.semester || 'N/A'}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 block mb-0.5">Academic Year</span>
-                                                    <span className="font-bold text-slate-800">{rec.academicYear || 'N/A'}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 block mb-0.5">Payment Type</span>
-                                                    <span className="font-bold text-slate-800">{rec.paymentType || 'N/A'}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 block mb-0.5">Uploaded Date</span>
-                                                    <span className="font-bold text-slate-800">{formatDate(rec.createdAt || rec.uploadedAt)}</span>
-                                                </div>
-                                                <div className="col-span-2 md:col-span-4 flex justify-start mt-2">
-                                                    <div>
-                                                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 block mb-2">Current Status</span>
-                                                        {rec.status === 'verified' && <Badge type="verified"><span className="mr-2">✓</span>Verified</Badge>}
-                                                        {rec.status === 'pending' && <Badge type="pending"><span className="mr-2 animate-pulse">⏳</span>Pending</Badge>}
-                                                        {rec.status === 'rejected' && <Badge type="rejected"><span className="mr-2">❌</span>Rejected</Badge>}
-                                                    </div>
                                                 </div>
                                             </div>
 
-                                        {/* Rejection Handling & Reupload Section */}
-                                        {rec.status === 'rejected' && (
-                                            <div className="mt-6 border-t border-slate-100 pt-6">
-                                                <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-6 shadow-sm">
-                                                    <h4 className="text-red-800 font-extrabold flex items-center mb-3">
-                                                        <span className="mr-2 text-lg">⚠️</span> Payment Rejected
-                                                    </h4>
-                                                    <div className="bg-white/60 p-4 rounded-lg border border-red-100">
-                                                        <p className="text-sm text-red-800 font-bold mb-1">Reason: <span className="font-semibold">{rec.rejectionReason}</span></p>
-                                                        {rec.rejectionComment && (
-                                                            <p className="text-sm text-red-800 font-medium opacity-90 mt-2">"{rec.rejectionComment}"</p>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                            <div className="border-t border-slate-100" />
 
+                                            {/* Middle: Payment Info + Uploaded Date */}
+                                            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                                                <div>
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1">Payment Info</span>
+                                                    <span className="font-bold text-slate-800">{getPaymentLabel(rec)}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1">Uploaded Date</span>
+                                                    <span className="font-bold text-slate-800 text-xs leading-snug">{formatDate(rec.createdAt || rec.uploadedAt)}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="border-t border-slate-100" />
+
+                                            {/* Bottom: Status */}
+                                            <div>
+                                                <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1.5">Current Status</span>
+                                                {rec.status === 'verified' && <Badge type="verified"><span className="mr-1.5">✓</span>Verified</Badge>}
+                                                {rec.status === 'pending'  && <Badge type="pending"><span className="mr-1.5 animate-pulse">⏳</span>Pending</Badge>}
+                                                {rec.status === 'rejected' && <Badge type="rejected"><span className="mr-1.5">❌</span>Rejected</Badge>}
+                                            </div>
+
+                                            {/* Rejection reason */}
+                                            {rec.status === 'rejected' && (
+                                                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                                                    <p className="text-xs font-extrabold text-red-700 flex items-center gap-1.5 mb-1">
+                                                        <span>⚠️</span> Payment Rejected
+                                                    </p>
+                                                    <p className="text-xs text-red-700 font-semibold">
+                                                        Reason: {rec.rejectionReason || '—'}
+                                                    </p>
+                                                    {rec.rejectionComment && (
+                                                        <p className="text-xs text-red-600 mt-1 opacity-80">"{rec.rejectionComment}"</p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Reupload button — only for rejected */}
+                                        {rec.status === 'rejected' && (
+                                            <div className="px-5 pb-5">
                                                 {activeReuploadId === rec.id ? (
-                                                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
-                                                        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
-                                                            <h4 className="text-lg font-extrabold text-slate-800 tracking-tight flex items-center">
-                                                                <span className="mr-2">🔁</span> Reupload Payment
+                                                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                                                        <div className="flex items-center justify-between">
+                                                            <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                                                                <span>🔁</span> Reupload Payment
                                                             </h4>
-                                                            <button 
+                                                            <button
                                                                 onClick={() => setActiveReuploadId(null)}
-                                                                className="text-sm font-bold text-slate-500 hover:text-slate-700 transition"
+                                                                className="text-xs font-bold text-slate-500 hover:text-slate-700 transition"
                                                             >
                                                                 Cancel
                                                             </button>
                                                         </div>
-
-                                                        <form onSubmit={(e) => handleReupload(e, rec)} className="space-y-6">
+                                                        <form onSubmit={(e) => handleReupload(e, rec)} className="space-y-4">
                                                             <Input
                                                                 label="Correct DU Number *"
                                                                 className="font-mono"
@@ -315,42 +358,42 @@ export default function CheckPaymentStatus() {
                                                                 onChange={(e) => setNewDUNumber(e.target.value)}
                                                                 required
                                                             />
-
-                                                            <div className="space-y-2">
+                                                            <div>
                                                                 <Input
-                                                                    label="New Payment Proof Link (Drive/Cloud) *"
-                                                                    placeholder="Paste your active link here..."
+                                                                    label="New Payment Proof Link *"
+                                                                    placeholder="Paste your Drive/Cloud link..."
                                                                     value={newProofLink}
                                                                     onChange={(e) => setNewProofLink(e.target.value)}
                                                                     required
                                                                 />
-                                                                <p className="text-xs text-amber-600 font-bold flex items-center gap-1 mt-2">
-                                                                    <span>⚠️</span> Please ensure access is set to "Anyone with the link".
+                                                                <p className="text-xs text-amber-600 font-bold flex items-center gap-1 mt-1.5">
+                                                                    <span>⚠️</span> Ensure access is set to "Anyone with the link".
                                                                 </p>
                                                             </div>
-
                                                             <Button
                                                                 type="submit"
                                                                 isLoading={isReuploading}
-                                                                loadingText="Processing Upload..."
-                                                                className="w-full text-base py-3.5 shadow-lg"
+                                                                loadingText="Uploading..."
+                                                                className="w-full py-3 shadow-md"
                                                             >
-                                                                Reupload New Payment
+                                                                Confirm Reupload
                                                             </Button>
                                                         </form>
                                                     </div>
                                                 ) : (
-                                                    <Button 
+                                                    <button
                                                         onClick={() => {
                                                             setActiveReuploadId(rec.id);
                                                             setNewDUNumber(rec.duNumber || '');
                                                             setNewProofLink('');
                                                         }}
-                                                        variant="secondary"
-                                                        className="w-full text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-none"
+                                                        className="w-full mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-2.5 rounded-xl hover:shadow-md hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2 text-sm"
                                                     >
-                                                        Tap to Reupload Error Receipt
-                                                    </Button>
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                                        </svg>
+                                                        Reupload Receipt
+                                                    </button>
                                                 )}
                                             </div>
                                         )}
@@ -367,3 +410,5 @@ export default function CheckPaymentStatus() {
         </div>
     );
 }
+
+

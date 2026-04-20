@@ -171,13 +171,14 @@ export default function TuitionFeePage() {
                         <input
                             type="text"
                             id="studentName"
+                            autoComplete="off"
                             value={studentName}
                             onChange={(e) => {
-                                setStudentName(e.target.value);
+                                setStudentName(e.target.value.toUpperCase());
                                 if (errors.name) setErrors({ ...errors, name: '' });
                             }}
                             placeholder="Enter Your Full Name"
-                            className={`input-premium ${errors.name ? '!border-red-300 !bg-red-50' : ''
+                            className={`input-premium uppercase ${errors.name ? '!border-red-300 !bg-red-50' : ''
                                 }`}
                         />
                         {errors.name && (
@@ -198,6 +199,7 @@ export default function TuitionFeePage() {
                         <input
                             type="text"
                             id="rollNumber"
+                            autoComplete="off"
                             value={rollNumber}
                             onChange={(e) => {
                                 setRollNumber(e.target.value.toUpperCase());
@@ -256,9 +258,10 @@ export default function TuitionFeePage() {
                         <input
                             type="text"
                             id="duNumber"
+                            autoComplete="off"
                             value={duNumber}
                             onChange={(e) => {
-                                setDuNumber(e.target.value);
+                                setDuNumber(e.target.value.toUpperCase());
                                 if (errors.duNumber) setErrors({ ...errors, duNumber: '' });
                             }}
                             placeholder="Enter DU Number"
@@ -283,6 +286,7 @@ export default function TuitionFeePage() {
                         <input
                             type="text"
                             id="paymentProofLink"
+                            autoComplete="off"
                             value={paymentProofLink}
                             onChange={(e) => {
                                 setPaymentProofLink(e.target.value);

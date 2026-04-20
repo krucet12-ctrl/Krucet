@@ -313,6 +313,7 @@ export default function ResultsPage() {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <input
               type="text"
+              autoComplete="off"
               className="input-premium flex-1 uppercase"
               placeholder="Enter Roll Number"
               value={roll}

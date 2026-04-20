@@ -76,6 +76,7 @@ const AdminLogin: React.FC = () => {
               <input
                 id="email"
                 type="email"
+                autoComplete="off"
                 placeholder="admin@university.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -92,6 +93,7 @@ const AdminLogin: React.FC = () => {
               <input
                 id="password"
                 type="password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
