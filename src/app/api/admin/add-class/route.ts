@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb, admin } from '@/lib/firebase-admin';
 
-console.log('/api/admin/add-class route loaded');
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   return NextResponse.json({ success: false, message: 'Use POST for adding class data' }, { status: 405 });

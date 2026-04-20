@@ -3,6 +3,8 @@ import { addOrUpdateCurriculum } from '@/lib/firebaseService';
 import type { CurriculumSubject } from '@/lib/types';
 import { safeTrim } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 // Request body interface for type safety
 interface UpdateCurriculumRequest {
     regulation: string;

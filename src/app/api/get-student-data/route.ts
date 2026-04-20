@@ -5,6 +5,8 @@ import { getRegulationForRollNumber, parseRollNumber } from '../../../lib/fireba
 import { getGradePoint, getGrade, isSubjectPassed } from '../../../lib/gradingUtils';
 import { safeTrim } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 // ── Module-level cache (survives across requests in the same server process) ──
 const curriculumCache: Record<string, { data: CurriculumEntry[], timestamp: number }> = {};
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes

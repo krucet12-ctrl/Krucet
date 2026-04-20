@@ -4,21 +4,6 @@ import { getFirestore, Firestore, connectFirestoreEmulator, enableNetwork } from
 import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
-// ─── Validate Required Variables (client-side only, non-blocking) ─────────────
-if (typeof window !== 'undefined') {
-  const REQUIRED = [
-    'NEXT_PUBLIC_FIREBASE_API_KEY',
-    'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-    'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-    'NEXT_PUBLIC_FIREBASE_APP_ID',
-  ];
-  const missing = REQUIRED.filter((k) => !process.env[k as keyof typeof process.env]);
-  if (missing.length > 0) {
-    // Warn only — these vars are injected at build time by Next.js
-    console.warn(`[Firebase] Missing env vars: ${missing.join(', ')}. Check your .env.local file.`);
-  }
-}
-
 // ─── Config ───────────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -31,8 +16,6 @@ const firebaseConfig = {
 };
 
 // ─── Singleton Initialization ─────────────────────────────────────────────────
-// getApps().length check prevents "Firebase App named '[DEFAULT]' already exists"
-// error that occurs during Next.js hot-reload and server-side module re-evaluation.
 const app: FirebaseApp = getApps().length === 0
   ? initializeApp(firebaseConfig)
   : getApp();
@@ -49,6 +32,20 @@ if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIREST
     connectFirestoreEmulator(db, 'localhost', 8080);
   } catch {
     // Already connected — safe to ignore
+  }
+}
+
+// ─── Client-side Validation (non-blocking warn) ───────────────────────────────
+if (typeof window !== 'undefined') {
+  const REQUIRED = [
+    'NEXT_PUBLIC_FIREBASE_API_KEY',
+    'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+    'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+    'NEXT_PUBLIC_FIREBASE_APP_ID',
+  ] as const;
+  const missing = REQUIRED.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    console.warn(`[Firebase] Missing env vars: ${missing.join(', ')}. Check your .env.local or Vercel environment settings.`);
   }
 }
 

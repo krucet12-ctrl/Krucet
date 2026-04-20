@@ -6,6 +6,8 @@ import { StudentData } from '../../../lib/types';
 import { getGradePoint, isSubjectPassed } from '../../../lib/gradingUtils';
 import { safeTrim } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 // ── Module-level cache (survives across requests in the same server process) ──
 const curriculumCache: Record<string, { data: any[], timestamp: number }> = {};
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { collection, query, where, getDocs, orderBy, limit, startAfter, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
+export const dynamic = 'force-dynamic';
+
 // Helper to convert Firestore timestamp to date string
 const formatDate = (timestamp: any) => {
     if (!timestamp) return '';

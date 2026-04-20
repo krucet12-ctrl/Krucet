@@ -11,6 +11,8 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, serverTimestamp, query, where } from 'firebase/firestore';
 import { parseResultHTML } from '../../../lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 // Generate roll numbers in range
 const generateRollNumbers = (startRoll: string, endRoll: string): string[] => {
   const rollNumbers: string[] = [];

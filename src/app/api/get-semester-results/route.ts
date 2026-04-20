@@ -4,6 +4,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { getRegulationForRollNumber, parseRollNumber } from '../../../lib/firebaseService';
 import { StudentData } from '../../../lib/types';
 
+export const dynamic = 'force-dynamic';
+
 // Simple in-memory cache for curriculum data
 const curriculumCache: Record<string, { data: any, timestamp: number }> = {};
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
     try {
         const curriculumRef = collection(db, 'curriculum');

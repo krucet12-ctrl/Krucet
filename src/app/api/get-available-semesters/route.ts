@@ -5,6 +5,8 @@ import { getRegulationForRollNumber, parseRollNumber } from '../../../lib/fireba
 import { StudentData } from '../../../lib/types';
 import { safeTrim } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 // Simple in-memory cache for curriculum data across requests
 const curriculumCache: Record<string, { data: any, timestamp: number }> = {};
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
