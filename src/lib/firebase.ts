@@ -4,19 +4,18 @@ import { getFirestore, Firestore, connectFirestoreEmulator, enableNetwork } from
 import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
-// ─── Validate Required Variables ─────────────────────────────────────────────
-const REQUIRED = [
-  'NEXT_PUBLIC_FIREBASE_API_KEY',
-  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-  'NEXT_PUBLIC_FIREBASE_APP_ID',
-];
-
+// ─── Validate Required Variables (client-side only, non-blocking) ─────────────
 if (typeof window !== 'undefined') {
-  // Only validate in browser — avoids SSR false negatives during static generation
-  const missing = REQUIRED.filter((k) => !process.env[k]);
+  const REQUIRED = [
+    'NEXT_PUBLIC_FIREBASE_API_KEY',
+    'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+    'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+    'NEXT_PUBLIC_FIREBASE_APP_ID',
+  ];
+  const missing = REQUIRED.filter((k) => !process.env[k as keyof typeof process.env]);
   if (missing.length > 0) {
-    console.error(`[Firebase] Missing required env vars: ${missing.join(', ')}`);
+    // Warn only — these vars are injected at build time by Next.js
+    console.warn(`[Firebase] Missing env vars: ${missing.join(', ')}. Check your .env.local file.`);
   }
 }
 
