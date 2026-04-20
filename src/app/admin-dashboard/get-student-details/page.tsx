@@ -22,7 +22,7 @@ const getLateralPrefix = (batch: string) => {
 };
 
 const DEPT_OPTIONS = {
-  BTech: ["CSE", "ECE", "AIM"],
+  BTech: ["CSE", "ECE", "AIML"],
   MTech: ["CSE"],
 };
 
@@ -214,14 +214,14 @@ const getGroupedFields = (studentObj: Record<string, unknown>) => {
 
   GROUPS.forEach(group => {
     const matchedFields: typeof allFields = [];
-    
+
     // We try to match each predefined field against the student's actual fields
     group.fields.forEach(targetLower => {
-      const matchIndex = allFields.findIndex(f => 
-        !usedKeys.has(f.key) && 
+      const matchIndex = allFields.findIndex(f =>
+        !usedKeys.has(f.key) &&
         (f.key.toLowerCase().trim() === targetLower || f.label.toLowerCase().trim() === targetLower)
       );
-      
+
       if (matchIndex !== -1) {
         matchedFields.push(allFields[matchIndex]);
         usedKeys.add(allFields[matchIndex].key);
@@ -329,9 +329,9 @@ export default function GetStudentDetailsPage() {
     // Get all other fields not in the key fields
     const groupedFields = getGroupedFields(student);
     let additionalDetailsHtml = '';
-    
+
     groupedFields.forEach(group => {
-      const relevantFields = group.fields.filter(f => 
+      const relevantFields = group.fields.filter(f =>
         !["name of the student", "name", "roll no", "reg.no", "rollno", "roll", "branch", "department", "regulation", "batch", "coursetype"].includes(f.key.toLowerCase())
       );
       if (relevantFields.length > 0) {

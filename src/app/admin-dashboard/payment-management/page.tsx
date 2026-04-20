@@ -187,9 +187,9 @@ export default function PaymentManagement() {
                         <input
                             type="text"
                             placeholder="Roll No, DU Number, Name..."
-                            className="input-premium focus:ring-2"
+                            className="input-premium focus:ring-2 uppercase"
                             value={filters.search}
-                            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                            onChange={(e) => setFilters({ ...filters, search: e.target.value.toUpperCase() })}
                         />
                     </div>
 

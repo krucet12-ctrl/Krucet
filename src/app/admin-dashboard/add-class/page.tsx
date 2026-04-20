@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Edit3, Save, Search, RefreshCw, ShieldCheck, ChevronDown } from 'lucide-react';
+import { ArrowLeft, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Edit3, Save, Search, RefreshCw, ShieldCheck } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -387,19 +387,20 @@ function CheckClassTab() {
     const [fetchedPath, setFetchedPath] = useState('');
     const [lateralExists, setLateralExists] = useState(false);
 
-    const [selectedRegulation, setSelectedRegulation] = useState('');
+    const [selectedRegulationNumber, setSelectedRegulationNumber] = useState('');
+    const selectedRegulation = selectedRegulationNumber ? `R${selectedRegulationNumber}` : '';
     const [updateStatus, setUpdateStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [updateMsg, setUpdateMsg] = useState('');
     const [currentRegulation, setCurrentRegulation] = useState('');
 
-    const hasChanged = fetchStatus === 'success' && selectedRegulation !== currentRegulation;
+    const hasChanged = fetchStatus === 'success' && selectedRegulation !== currentRegulation && selectedRegulation !== '';
 
     const fetchClass = async () => {
         if (!batch.trim()) return;
         setFetchStatus('loading');
         setClassData(null);
         setCurrentRegulation('');
-        setSelectedRegulation('');
+        setSelectedRegulationNumber('');
         setUpdateStatus('idle');
         setUpdateMsg('');
         setLateralExists(false);
@@ -431,7 +432,8 @@ function CheckClassTab() {
             
             setClassData(batchSnap.data() as ClassDocData);
             setCurrentRegulation(regulation);
-            setSelectedRegulation(regulation);
+            // Strip the leading 'R' so the input shows just the digits
+            setSelectedRegulationNumber(regulation.replace(/^R/i, ''));
             setFetchedPath(batchPath);
             setFetchStatus('success');
         } catch (err) {
@@ -579,21 +581,18 @@ function CheckClassTab() {
                         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
                             <div className="flex-1 space-y-2">
                                 <label className="label-premium">Regulation for {batch.toUpperCase()} {lateralExists && `& ${lateralBatch}`}</label>
-                                <div className="relative w-full">
-                                    <select
-                                        id="regulation-select"
-                                        className="input-premium font-bold appearance-none pr-10"
-                                        value={selectedRegulation}
-                                        onChange={(e) => setSelectedRegulation(e.target.value)}
-                                    >
-                                        <option value="">Select Regulation</option>
-                                        <option value="R18">R18</option>
-                                        <option value="R20">R20</option>
-                                        <option value="R23">R23</option>
-                                    </select>
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                        <ChevronDown className="w-5 h-5 text-slate-400" />
-                                    </div>
+                                <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                    <span className="bg-slate-100 px-4 py-2.5 font-bold text-slate-600 text-sm">R</span>
+                                    <input
+                                        id="regulation-input"
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={2}
+                                        placeholder="20, 23, 26...etc"
+                                        className="flex-1 px-4 py-2.5 outline-none text-sm font-bold"
+                                        value={selectedRegulationNumber}
+                                        onChange={(e) => setSelectedRegulationNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                                    />
                                 </div>
                             </div>
 
