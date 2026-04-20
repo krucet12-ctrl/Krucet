@@ -1,8 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { signOut, User, onAuthStateChanged } from 'firebase/auth';
+
+const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
 
 interface SubjectMarks {
   subCode: string;
@@ -26,12 +28,27 @@ export interface StudentData {
 
 export default function AdminPage() {
   // Only keep authentication, loading, and logout logic
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const router = useRouter();
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const handleLogout = useCallback(async () => {
+    setLogoutLoading(true);
+    try {
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      await signOut(auth);
+      router.push('/admin-login');
+    } catch {
+      // handle error silently
+    } finally {
+      setLogoutLoading(false);
+    }
+  }, [router]);
+
+  // ── Auth state listener ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!auth) {
       router.replace('/admin-login');
@@ -51,17 +68,38 @@ export default function AdminPage() {
     return () => unsubscribe();
   }, [router]);
 
-  const handleLogout = async () => {
-    setLogoutLoading(true);
-    try {
-      await signOut(auth);
-      router.push('/admin-login');
-    } catch {
-      // handle error, optionally log message
-    } finally {
-      setLogoutLoading(false);
-    }
-  };
+  // ── Inactivity auto-logout ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!authenticated) return;
+
+    const resetTimer = () => {
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      inactivityTimer.current = setTimeout(() => {
+        signOut(auth).then(() => router.replace('/admin-login'));
+      }, INACTIVITY_LIMIT_MS);
+    };
+
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'] as const;
+    events.forEach((e) => window.addEventListener(e, resetTimer));
+    resetTimer(); // Start the timer immediately
+
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, resetTimer));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    };
+  }, [authenticated, router]);
+
+  // ── Sign out on tab / browser close ─────────────────────────────────────────
+  useEffect(() => {
+    if (!authenticated) return;
+
+    const handleBeforeUnload = () => {
+      signOut(auth);
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [authenticated]);
 
   if (loading) {
     return (
