@@ -228,7 +228,7 @@ function CheckStoredResultsTab() {
                 type="text"
                 inputMode="numeric"
                 placeholder="22..etc"
-                className="flex-1 px-4 py-2.5 outline-none text-sm font-bold uppercase w-20"
+                className="input-prefix-inner uppercase w-20"
                 value={batchFilterNumber}
                 onChange={(e) => setBatchFilterNumber(e.target.value.replace(/[^0-9]/g, ''))}
                 maxLength={2}
@@ -534,7 +534,7 @@ function BulkScrapingTab() {
                 type="text"
                 inputMode="numeric"
                 placeholder="22,23,24,25,26....etc"
-                className="flex-1 px-4 py-2.5 outline-none text-sm font-bold uppercase"
+                className="input-prefix-inner uppercase"
                 value={batchNumber}
                 onChange={(e) => setBatchNumber(e.target.value.replace(/[^0-9]/g, ''))}
                 maxLength={2}

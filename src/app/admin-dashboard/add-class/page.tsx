@@ -233,7 +233,7 @@ function AddClassTab() {
                                             type="text"
                                             inputMode="numeric"
                                             placeholder="20,23,26...etc"
-                                            className="flex-1 px-4 py-2.5 outline-none text-sm font-bold uppercase"
+                                            className="input-prefix-inner uppercase"
                                             value={regulationNumber}
                                             onChange={(e) => setRegulationNumber(e.target.value.replace(/[^0-9]/g, ''))}
                                         />
@@ -508,7 +508,7 @@ function CheckClassTab() {
                                 type="text"
                                 inputMode="numeric"
                                 placeholder="22,23,24...etc"
-                                className="flex-1 px-4 py-2.5 outline-none text-sm font-bold uppercase"
+                                className="input-prefix-inner uppercase"
                                 value={batchNumber}
                                 onChange={(e) => { setBatchNumber(e.target.value.replace(/[^0-9]/g, '')); setFetchStatus('idle'); setClassData(null); }}
                                 maxLength={2}
@@ -589,7 +589,7 @@ function CheckClassTab() {
                                         inputMode="numeric"
                                         maxLength={2}
                                         placeholder="20, 23, 26...etc"
-                                        className="flex-1 px-4 py-2.5 outline-none text-sm font-bold"
+                                        className="input-prefix-inner"
                                         value={selectedRegulationNumber}
                                         onChange={(e) => setSelectedRegulationNumber(e.target.value.replace(/[^0-9]/g, ''))}
                                     />

@@ -74,6 +74,23 @@ body {
     appearance: none;
   }
 
+  /*
+   * For inputs embedded inside prefix-bordered wrappers (e.g. the R/Y prefix
+   * compound inputs). These share the same placeholder & mobile fixes but
+   * have no border of their own — the parent wrapper provides it.
+   */
+  .input-prefix-inner {
+    @apply flex-1 bg-white text-slate-900 text-sm font-bold
+           outline-none placeholder-slate-500
+           px-4 py-2.5;
+    &::placeholder {
+      opacity: 1;
+      color: #64748b; /* slate-500 */
+    }
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   /* Typography */
   .label-premium {
     @apply block text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wider;
