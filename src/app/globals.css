@@ -57,9 +57,23 @@ body {
   
   /* Inputs */
   .input-premium {
-    @apply w-full px-4 py-3 bg-gray-50/50 border border-gray-200/80 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all duration-200 outline-none hover:bg-white text-gray-800 text-sm sm:text-base placeholder-gray-400 shadow-sm;
+    @apply w-full px-4 py-3 bg-white border border-slate-300 rounded-xl
+           focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
+           hover:border-slate-400
+           transition-all duration-200 outline-none
+           text-slate-900 text-sm sm:text-base
+           placeholder-slate-500
+           shadow-sm;
+    /* Force placeholder opacity — prevents fading on mobile browsers */
+    &::placeholder {
+      opacity: 1;
+      color: #64748b; /* slate-500 */
+    }
+    /* Prevent iOS from auto-styling inputs */
+    -webkit-appearance: none;
+    appearance: none;
   }
-  
+
   /* Typography */
   .label-premium {
     @apply block text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wider;

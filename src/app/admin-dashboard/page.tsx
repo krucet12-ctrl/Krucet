@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { signOut, User, onAuthStateChanged } from 'firebase/auth';
 
-const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
+const INACTIVITY_LIMIT_MS = 10 * 60 * 1000; // 10 minutes
 
 interface SubjectMarks {
   subCode: string;
