@@ -11,8 +11,8 @@ interface StudentInfo {
 
 interface ResultType {
   code: string;
-  name?: string;
   credits: number;
+  maxMarks?: number;
   extMarks?: number;
   intMarks?: number;
   total: number;
@@ -134,133 +134,212 @@ export default function ResultsPage() {
     
     const logoUrl = window.location.origin + UNIVERSITY_LOGO;
     const semesterLabel = semester ? semester.replace('SEM', 'Semester ') : "";
-    const currentDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    
-    // Extract batch/dept for display
-    const rollNo = studentInfo.roll;
-    const batch = rollNo.substring(0, 3);
-    const regulation = gpa ? "As per Regulation" : "R20"; // Fallback or dynamic
-    
-    // Generate the table rows manually for perfect control in marks memo
-    const tableRows = results.map(res => `
-      <tr>
-        <td class="center font-mono">${res.code}</td>
-        <td>${res.name || (res.code.includes('LAB') ? 'PRACTICAL' : 'THEORY')}</td>
-        <td class="center">${res.total}</td>
-        <td class="center bold">${res.grade}</td>
-        <td class="center">${res.credits}</td>
-      </tr>
-    `).join('');
+    const currentDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
-    const totalCredits = results.reduce((acc, curr) => acc + (curr.pass ? curr.credits : 0), 0);
+    const rollNo = studentInfo.roll;
+
+    const getRegulation = (rn: string) => {
+      const match = rn.match(/^([YL]\d{2})/i);
+      if (!match) return 'R20';
+      const batch = match[1].toUpperCase();
+      if (['Y20', 'Y21'].includes(batch)) return 'R18';
+      return 'R20';
+    };
+    const regulation = getRegulation(rollNo);
+
+    // Derive year/sem label from SEM number
+    const semNum = parseInt(semester.replace('SEM', '')) || 0;
+    const yearLabel = semNum <= 2 ? 'I YEAR' : semNum <= 4 ? 'II YEAR' : semNum <= 6 ? 'III YEAR' : 'IV YEAR';
+    const semInYear = semNum % 2 === 1 ? 'I Semester' : 'II Semester';
+
+    const totalCreditsEarned = results.reduce((acc, curr) => acc + (curr.pass ? curr.credits : 0), 0);
+    const totalCreditsReg = results.reduce((acc, curr) => acc + curr.credits, 0);
+    const totalMarks = results.reduce((acc, curr) => acc + curr.total, 0);
+    const maxMarks = results.length * 100;
+    const overallResult = results.every(r => r.pass) ? 'PASS' : 'FAIL';
+
+    const hasIntExt = results.some(r => r.intMarks !== undefined || r.extMarks !== undefined);
+
+    const tableHeaders = hasIntExt
+      ? `<th class="left" style="width:18%">Sub Code</th>
+         <th style="width:10%">Max</th>
+         <th style="width:10%">Internal</th>
+         <th style="width:10%">External</th>
+         <th style="width:10%">Total</th>
+         <th style="width:8%">Grade</th>
+         <th style="width:8%">Credits</th>
+         <th style="width:8%">Status</th>`
+      : `<th class="left" style="width:22%">Sub Code</th>
+         <th style="width:12%">Max</th>
+         <th style="width:14%">Total Marks</th>
+         <th style="width:12%">Grade</th>
+         <th style="width:12%">Credits</th>
+         <th style="width:10%">Status</th>`;
+
+    const tableRows = results.map(res => {
+      const statusCell = `<td class="center" style="color:${res.pass ? '#166534' : '#991b1b'};font-weight:700">${res.pass ? 'P' : 'F'}</td>`;
+      const max = (res.maxMarks ?? 100);
+      if (hasIntExt) {
+        return `<tr>
+          <td class="mono">${res.code}</td>
+          <td class="center bold">${max}</td>
+          <td class="center">${res.intMarks ?? '-'}</td>
+          <td class="center">${res.extMarks ?? '-'}</td>
+          <td class="center bold">${res.total}</td>
+          <td class="center bold" style="${!res.pass ? 'color:#991b1b' : ''}">${res.grade}</td>
+          <td class="center">${res.credits}</td>
+          ${statusCell}
+        </tr>`;
+      } else {
+        return `<tr>
+          <td class="mono">${res.code}</td>
+          <td class="center bold">${max}</td>
+          <td class="center bold">${res.total}</td>
+          <td class="center bold" style="${!res.pass ? 'color:#991b1b' : ''}">${res.grade}</td>
+          <td class="center">${res.credits}</td>
+          ${statusCell}
+        </tr>`;
+      }
+    }).join('');
+
+    const examMonthYear = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+
+    const classAwarded = (() => {
+      if (!gpa || gpa === 'NA') return 'N/A';
+      const g = Number(gpa);
+      if (g >= 8.0) return 'First Class with Distinction';
+      if (g >= 7.0) return 'First Class';
+      if (g >= 6.0) return 'Second Class';
+      if (g >= 5.0) return 'Pass Class';
+      return 'Fail';
+    })();
 
     return `
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
-        
-        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: white; color: #111; }
-        
-        .memo-outer { border: 1px solid #333; padding: 1mm; margin: 0 auto; max-width: 210mm; background: #fff; position: relative; }
-        .memo-inner { border: 2px solid #333; padding: 15px 30px; position: relative; }
-        
-        .header { display: flex; align-items: center; justify-content: center; margin-bottom: 20px; border-bottom: 1.5px solid #000; padding-bottom: 15px; gap: 12px; flex-wrap: wrap; }
-        .logo { width: 75px; height: 75px; object-fit: contain; flex-shrink: 0; }
-        .text-container { flex: 1; min-width: 0; text-align: center; }
-        .university-name { font-family: 'Crimson Pro', serif; font-size: 24px; font-weight: 800; margin: 0; text-transform: uppercase; color: #000; white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
-        .header h2 { font-size: 14px; font-weight: 700; margin: 5px 0; color: #333; }
-        .header p { font-size: 10px; margin: 2px 0; color: #555; font-weight: 500; }
-        .memo-title { display: inline-block; margin-top: 10px; padding: 3px 15px; border: 1px solid #000; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; }
+        @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;600;700&display=swap');
+        @page { size: A4 portrait; margin: 10mm 12mm; }
+        *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        html, body { margin: 0; padding: 0; background: #fff; color: #000; font-family: 'Source Sans 3', sans-serif; font-size: 11px; }
 
-        @media screen and (max-width: 768px) {
-          .header { flex-direction: column; align-items: flex-start; }
-          .text-container { text-align: left; }
-          .university-name { font-size: 16px; line-height: 1.3; }
-        }
+        .cmm-wrap { border: 2.5px solid #000; padding: 3px; width: 100%; }
+        .cmm-inner { border: 1px solid #000; padding: 16px 20px 14px; }
 
-        .student-sec { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; padding: 10px 0; border-bottom: 1px dashed #999; }
-        .field { display: flex; margin-bottom: 5px; font-size: 11px; }
-        .label { font-weight: 700; width: 110px; text-transform: uppercase; font-size: 10px; color: #444; }
-        .value { border-bottom: 1px dotted #ccc; flex: 1; font-weight: 600; padding-left: 5px; }
+        /* Header — centered, no flex row */
+        .hdr { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 10px; }
+        .hdr-logo { width: 64px; height: 64px; object-fit: contain; display: block; margin: 0 auto 6px; }
+        .hdr-univ { font-family: 'EB Garamond', serif; font-size: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.2; margin: 0; }
+        .hdr-addr { font-size: 11px; color: #222; margin: 3px 0 0; font-weight: 500; }
+        .hdr-title { display: inline-block; margin-top: 9px; border: 1px solid #000; padding: 3px 22px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
 
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; page-break-inside: avoid; }
-        th { border: 1px solid #000; padding: 6px; background: #f2f2f2; font-size: 10px; font-weight: 800; text-transform: uppercase; }
-        td { border: 1px solid #000; padding: 6px; font-size: 11px; }
-        .center { text-align: center; }
-        .bold { font-weight: 700; }
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        /* Student detail grid — 6 fields */
+        .stu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; border: 1px solid #000; padding: 8px 12px; margin-bottom: 10px; }
+        .field { display: flex; align-items: baseline; margin-bottom: 5px; }
+        .lbl { font-weight: 700; font-size: 10px; text-transform: uppercase; width: 150px; flex-shrink: 0; color: #333; }
+        .val { font-weight: 600; font-size: 11px; border-bottom: 1px dotted #999; flex: 1; padding-left: 6px; min-height: 15px; }
 
-        .summary-sec { display: flex; justify-content: space-around; align-items: flex-start; margin-bottom: 20px; page-break-inside: avoid; }
-        .summary-item { display: flex; flex-direction: column; align-items: center; }
-        .sum-val { font-size: 20px; font-weight: 800; color: #000; }
-        .sum-lab { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #666; }
-        .sgpa-highlight { border: 2px solid #000; padding: 6px 20px; border-radius: 4px; background: #f9f9f9; }
+        /* Year/Sem banner */
+        .sem-banner { text-align: center; font-family: 'EB Garamond', serif; font-size: 13px; font-weight: 700; border: 1px solid #000; padding: 4px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
 
-        .footer { display: flex; justify-content: center; align-items: center; margin-top: 10px; page-break-inside: avoid; }
-        .date-sec { font-size: 10px; font-weight: 600; text-align: center; }
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; page-break-inside: avoid; font-size: 10.5px; }
+        th { border: 1px solid #000; padding: 5px 6px; background: #f0f0f0; font-weight: 700; text-transform: uppercase; font-size: 9.5px; text-align: center; }
+        th.left { text-align: left; }
+        td { border: 1px solid #000; padding: 5px 6px; }
+        td.center { text-align: center; }
+        td.bold { font-weight: 700; }
+        td.mono { font-family: monospace; font-size: 10px; }
+
+        /* Summary bar */
+        .summary-bar { display: flex; border: 1px solid #000; margin-bottom: 12px; }
+        .sum-cell { flex: 1; padding: 7px 8px; text-align: center; border-right: 1px solid #000; }
+        .sum-cell:last-child { border-right: none; }
+        .sum-val { font-family: 'EB Garamond', serif; font-size: 22px; font-weight: 800; display: block; line-height: 1; }
+        .sum-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #555; letter-spacing: 0.05em; display: block; margin-top: 2px; }
+
+        /* Footer */
+        .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; border-top: 1px solid #000; padding-top: 8px; }
+        .footer-date { font-size: 10px; font-weight: 600; }
+        .footer-stamp { text-align: center; }
+        .stamp-text { font-family: 'EB Garamond', serif; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border: 1.5px solid #000; padding: 4px 18px; display: inline-block; }
 
         @media print {
-          @page { size: A4 portrait; margin: 10mm; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .memo-outer { border: none; margin: 0; width: 100%; padding: 0; page-break-inside: avoid; }
-          .memo-inner { page-break-inside: avoid; }
+          .cmm-wrap { border: 2.5px solid #000 !important; }
+          .cmm-inner { border: 1px solid #000 !important; }
+          table { page-break-inside: avoid; }
         }
       </style>
-      <div class="memo-outer">
-        <div class="memo-inner">
-          <div class="header">
-            <img src="${logoUrl}" alt="University Logo" class="logo" />
-            <div class="text-container">
-              <h1 class="university-name">${UNIVERSITY_NAME}</h1>
-              <h2>${COLLEGE_NAME}</h2>
-              <p>${COLLEGE_ADDRESS}</p>
-              <div class="memo-title">Statement of Marks</div>
-            </div>
-          </div>
-          
-          <div class="student-sec">
-            <div class="field"><span class="label">Name:</span><span class="value">${studentInfo.name}</span></div>
-            <div class="field"><span class="label">Roll Number:</span><span class="value">${studentInfo.roll}</span></div>
-            <div class="field"><span class="label">Branch:</span><span class="value">${studentInfo.branch}</span></div>
-            <div class="field"><span class="label">Examination:</span><span class="value">${semesterLabel} - End Exams</span></div>
+      <div class="cmm-wrap">
+        <div class="cmm-inner">
+
+          <!-- Header -->
+          <div class="hdr">
+            <img src="${logoUrl}" alt="Logo" class="hdr-logo" />
+            <div class="hdr-univ">KRISHNA UNIVERSITY</div>
+            <div class="hdr-addr">Machilipatnam – 521004, ANDHRA PRADESH, INDIA</div>
+            <div class="hdr-title">Consolidated Marks Memo / Credit Sheet</div>
           </div>
 
+          <!-- Student Details (6 fields only) -->
+          <div class="stu-grid">
+            <div class="field"><span class="lbl">Student Name</span><span class="val">${studentInfo.name}</span></div>
+            <div class="field"><span class="lbl">Hall Ticket No</span><span class="val">${rollNo}</span></div>
+            <div class="field"><span class="lbl">College Name</span><span class="val">${COLLEGE_NAME}</span></div>
+            <div class="field"><span class="lbl">Month &amp; Year of Exam</span><span class="val">${examMonthYear}</span></div>
+            <div class="field"><span class="lbl">Year of Admission</span><span class="val">20${rollNo.substring(1, 3) || '__'}</span></div>
+            <div class="field"><span class="lbl">Class Awarded</span><span class="val">${classAwarded}</span></div>
+          </div>
+
+          <!-- Year/Sem banner -->
+          <div class="sem-banner">${yearLabel} &nbsp;|&nbsp; ${semInYear} End Examination Results</div>
+
+          <!-- Marks Table -->
           <table>
             <thead>
               <tr>
-                <th width="15%">Sub Code</th>
-                <th>Subject Description</th>
-                <th width="12%">Marks</th>
-                <th width="12%">Grade</th>
-                <th width="12%">Credits</th>
+                ${tableHeaders}
               </tr>
             </thead>
             <tbody>
               ${tableRows}
+              <tr style="background:#f0f0f0">
+                <td class="bold" colspan="2">Total</td>
+                ${hasIntExt ? `<td class="center bold">—</td><td class="center bold">—</td>` : ''}
+                <td class="center bold">${totalMarks} / ${maxMarks}</td>
+                <td class="center bold">—</td>
+                <td class="center bold">${totalCreditsReg}</td>
+                <td class="center bold" style="color:${overallResult === 'PASS' ? '#166534' : '#991b1b'}">${overallResult}</td>
+              </tr>
             </tbody>
           </table>
 
-          <div class="summary-sec">
-            <div class="summary-item">
-              <span class="sum-val">${totalCredits}</span>
-              <span class="sum-lab">Earned Credits</span>
+          <!-- Summary Bar -->
+          <div class="summary-bar">
+            <div class="sum-cell">
+              <span class="sum-val">${totalCreditsReg}</span>
+              <span class="sum-lbl">Credits Registered</span>
             </div>
-            <div class="summary-item sgpa-highlight">
+            <div class="sum-cell">
+              <span class="sum-val">${totalCreditsEarned}</span>
+              <span class="sum-lbl">Credits Earned</span>
+            </div>
+            <div class="sum-cell">
+              <span class="sum-val">${totalMarks}</span>
+              <span class="sum-lbl">Aggregate Marks</span>
+            </div>
+            <div class="sum-cell">
               <span class="sum-val">${gpa || 'NA'}</span>
-              <span class="sum-lab">Semester GPA (SGPA)</span>
-            </div>
-            <div class="summary-item">
-              <span class="sum-val">${results.every(r => r.pass) ? 'PASS' : 'FAIL'}</span>
-              <span class="sum-lab">Result Status</span>
+              <span class="sum-lbl">SGPA</span>
             </div>
           </div>
 
+          <!-- Footer -->
           <div class="footer">
-            <div class="date-sec">
-              Date of Issue: ${currentDate}<br>
-              Generated Online
+            <div class="footer-date">Date of Issue: ${currentDate}</div>
+            <div class="footer-stamp">
+              <div class="stamp-text">TEMPORARY CMM</div>
             </div>
           </div>
+
         </div>
       </div>
     `;
@@ -275,7 +354,7 @@ export default function ResultsPage() {
     if (!htmlContent) return;
     const printWindow = window.open('', '', 'height=850,width=1100');
     if (!printWindow) return;
-    printWindow.document.write(`<html><head><title>Marks Memo - ${studentInfo?.roll}</title></head><body style="margin:0">${htmlContent}</body></html>`);
+    printWindow.document.write(`<html><head><title>Statement of Marks - ${studentInfo?.roll}</title></head><body style="margin:0">${htmlContent}</body></html>`);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => {
@@ -394,7 +473,7 @@ export default function ResultsPage() {
                     <span className="w-3 h-3 bg-indigo-600 rounded-full shadow-md"></span>
                     Examination Results
                   </h4>
-                  <p className="text-xs text-slate-500 font-medium pl-6">Verified as per ${UNIVERSITY_NAME} standards</p>
+                  <p className="text-xs text-slate-500 font-medium pl-6">Verified as per {UNIVERSITY_NAME} standards</p>
                 </div>
                 <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-slate-100">
                   <select
@@ -418,7 +497,7 @@ export default function ResultsPage() {
                     <thead>
                       <tr className="bg-slate-50/80 backdrop-blur-sm border-b border-slate-200">
                         <th className="px-6 py-5 text-left font-black text-slate-600 text-[11px] uppercase tracking-widest">Sub Code</th>
-                        <th className="px-6 py-5 text-left font-black text-slate-600 text-[11px] uppercase tracking-widest">Subject Name</th>
+                        <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest">Max Marks</th>
                         <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest">Credits</th>
                         <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest">Marks</th>
                         <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest">Grade</th>
@@ -429,7 +508,7 @@ export default function ResultsPage() {
                       {results.map((res, idx) => (
                         <tr key={idx} className="hover:bg-indigo-50/20 transition-all group">
                           <td className="px-6 py-5 font-mono text-slate-500 font-bold group-hover:text-indigo-600 transition-colors">{res.code}</td>
-                          <td className="px-6 py-5 text-slate-700 font-bold">{res.name || '-'}</td>
+                          <td className="px-6 py-5 text-center text-slate-900 font-black">{res.maxMarks ?? 100}</td>
                           <td className="px-6 py-5 text-center text-slate-900 font-black">{res.credits}</td>
                           <td className="px-6 py-5 text-center text-slate-900 font-black text-base">{res.total}</td>
                           <td className="px-6 py-5 text-center">

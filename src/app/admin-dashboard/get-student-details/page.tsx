@@ -4,7 +4,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { safeTrim } from "@/lib/utils";
+import { safeTrim, formatDateValue } from "@/lib/utils";
 import Link from "next/link";
 import { ArrowLeft, Printer } from "lucide-react";
 
@@ -23,7 +23,7 @@ const getLateralPrefix = (batch: string) => {
 
 const DEPT_OPTIONS = {
   BTech: ["CSE", "ECE", "AIML"],
-  MTech: ["CSE"],
+  MTech: ["MTH"],
 };
 
 // Print styles as a constant
@@ -201,10 +201,15 @@ const getGroupedFields = (studentObj: Record<string, unknown>) => {
     })
     .map(([key, value]) => {
       const label = formatKey(key);
+      const lk = key.toLowerCase().replace(/[\s_\-\.]/g, '');
+      const isDateField = lk.includes('date') || lk.includes('dob');
+      const displayValue = isDateField
+        ? formatDateValue(value)
+        : String(value);
       return {
         key,
         label,
-        value: String(value),
+        value: displayValue,
         highlight: highlightKeys.includes(key.toLowerCase()) || highlightKeys.includes(label.toLowerCase())
       };
     });

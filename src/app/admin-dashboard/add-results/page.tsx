@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { collection, getDocs, query, orderBy, Timestamp, where } from "firebase/firestore";
+import { collection, getDocs, query, Timestamp, addDoc, serverTimestamp, onSnapshot, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
-import { ArrowLeft, Search, ChevronDown, ChevronRight, Loader2, Database } from "lucide-react";
+import { ArrowLeft, Loader2, Database } from "lucide-react";
 import { safeTrim } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ const buildResultType = (
   semester: string,
   scrapeType: string
 ): string => {
-  if (!batch || !semester) return "";
+  if (!batch || !semester || !scrapeType) return "";
   const base = `${courseType}-${batch}-Sem${semester}`;
   if (scrapeType === "regular") return base;
   const suffix = scrapeType === "revaluation" ? "RVresults" : "SupplyResults";
@@ -88,299 +88,257 @@ function TypeBadge({ type, exists, count }: { type: "regular" | "revaluation" | 
 
 // ─── Check Stored Results Tab ─────────────────────────────────────────────────
 
+interface StoredResult {
+  id: string;
+  courseType: string;
+  batch: string;
+  semester: string;
+  scrapeType: string;
+  resultType: string;
+  rsurl: string;
+  createdAt: Timestamp | null;
+}
+
+const RESULT_TYPE_STYLES: Record<string, { bg: string; text: string; border: string; label: string; dot: string }> = {
+  regular:     { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", label: "Regular", dot: "bg-emerald-500" },
+  revaluation: { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200",    label: "Revaluation", dot: "bg-blue-500" },
+  supply:      { bg: "bg-orange-50",  text: "text-orange-700",  border: "border-orange-200",  label: "Supply", dot: "bg-orange-500" },
+};
+
+function ResultCard({ item }: { item: StoredResult }) {
+  const typeKey = (item.resultType || item.scrapeType || "").toString().trim().toLowerCase();
+  const style =
+    RESULT_TYPE_STYLES[typeKey] ??
+    { bg: "bg-slate-50", text: "text-slate-700", border: "border-slate-200", label: item.resultType || item.scrapeType || typeKey, dot: "bg-slate-400" };
+  const uploadDate = item.createdAt instanceof Timestamp
+    ? item.createdAt.toDate().toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+    : '—';
+  const semLabel = item.semester || "—";
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col">
+      {/* Top accent bar */}
+      <div className={`h-1.5 w-full ${style.dot}`} />
+
+      <div className="p-5 flex flex-col gap-4 flex-1">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-sm shrink-0">
+              <span className="text-white font-extrabold text-xs tracking-wide leading-tight text-center">{item.batch}</span>
+            </div>
+            <div>
+              <p className="font-extrabold text-slate-800 text-base leading-tight">{item.batch} Batch</p>
+              <p className="text-xs text-slate-400 font-semibold mt-0.5">{item.courseType || "—"}</p>
+            </div>
+          </div>
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-extrabold uppercase tracking-widest shrink-0 ${style.bg} ${style.text} ${style.border}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+            {style.label}
+          </span>
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-slate-100" />
+
+        {/* Fields */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Semester</p>
+            <p className="text-sm font-extrabold text-slate-800">{semLabel}</p>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Upload Date</p>
+            <p className="text-xs font-bold text-slate-700 leading-snug">{uploadDate}</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+          <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Scrape Type / Result Type</p>
+          <p className="text-xs font-extrabold text-slate-800">
+            {item.scrapeType || "—"} / {item.resultType || "—"}
+          </p>
+        </div>
+
+        {/* RSURL */}
+        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+          <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">RSURL</p>
+          <p className="text-[11px] font-mono font-bold text-indigo-700 break-all leading-snug">
+            {item.rsurl || <span className="text-slate-400 italic font-normal">Not recorded</span>}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CheckStoredResultsTab() {
-  const [courseType, setCourseType] = useState<CourseType>("BTech");
-  const [fetchStatus, setFetchStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [results, setResults] = useState<Record<string, BatchResult>>({});
-  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
-  const [batchFilterNumber, setBatchFilterNumber] = useState("");
+  const [fetchStatus, setFetchStatus] = useState<"loading" | "success" | "error">("loading");
+  const [allResults, setAllResults] = useState<StoredResult[]>([]);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // Derived value - always has Y prefix
-  const batchFilter = batchFilterNumber ? `Y${batchFilterNumber}` : '';
+  // Filters
+  const [batchFilter, setBatchFilter] = useState("");
+  const [semFilter, setSemFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
 
-  const semCount = courseType === "BTech" ? 8 : 4;
-
-  const toggleBatch = (batch: string) => {
-    setExpandedBatches(prev => {
-      const next = new Set(prev);
-      next.has(batch) ? next.delete(batch) : next.add(batch);
-      return next;
-    });
-  };
-
-  const fetchResults = async () => {
+  useEffect(() => {
     setFetchStatus("loading");
-    setResults({});
-    setExpandedBatches(new Set());
-
-    try {
-      // 1. Fetch from "results" collection with filter
-      const resultsSnap = await getDocs(query(collection(db, "results"), where("courseType", "==", courseType)));
-      const resultsData = resultsSnap.docs.map(d => d.data() as {
-        courseType: string;
-        batch: string;
-        semester: string;
-        resultType: string;
-        createdAt: Timestamp | string;
-      });
-
-      // Data is already filtered by courseType in the query
-      const filteredResults = resultsData;
-
-      // Group by batch
-      const grouped: Record<string, BatchResult> = {};
-
-      for (const r of filteredResults) {
-        const batch = r.batch;
-        if (!batch || batch.startsWith("L")) continue;
-
-        const lateralBatch = getLateralPrefix(batch);
-        const semKey = r.semester;
-        const resultTypeValue = r.resultType;
-
-        if (!grouped[batch]) {
-          grouped[batch] = {
-            batchLabel: batch,
-            lateralBatch: lateralBatch || undefined,
-            semesters: {}
-          };
-        }
-
-        if (!grouped[batch].semesters[semKey]) {
-          grouped[batch].semesters[semKey] = {
-            regular: false,
-            revaluation: false,
-            supply: false,
-            regularCount: 0,
-            revaluationCount: 0,
-            supplyCount: 0,
-            regularUploadedAt: null,
-            revaluationUploadedAt: null,
-            supplyUploadedAt: null,
-          };
-        }
-
-        // Set result type and date
-        const ts = r.createdAt;
-        const date = ts instanceof Timestamp ? ts.toDate() : ts ? new Date(ts as string) : null;
-
-        if (resultTypeValue === 'regular') {
-          grouped[batch].semesters[semKey].regular = true;
-          grouped[batch].semesters[semKey].regularUploadedAt = date;
-          grouped[batch].semesters[semKey].regularCount = 1;
-        } else if (resultTypeValue === 'revaluation') {
-          grouped[batch].semesters[semKey].revaluation = true;
-          grouped[batch].semesters[semKey].revaluationUploadedAt = date;
-          grouped[batch].semesters[semKey].revaluationCount = 1;
-        } else if (resultTypeValue === 'supply') {
-          grouped[batch].semesters[semKey].supply = true;
-          grouped[batch].semesters[semKey].supplyUploadedAt = date;
-          grouped[batch].semesters[semKey].supplyCount = 1;
-        }
+    setErrorMsg("");
+    const q = query(collection(db, "results"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows: StoredResult[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<StoredResult, "id">),
+        }));
+        setAllResults(rows);
+        setFetchStatus("success");
+      },
+      (err) => {
+        console.error(err);
+        setErrorMsg(err?.message || String(err));
+        setFetchStatus("error");
       }
+    );
+    return () => unsub();
+  }, []);
 
-      setResults(grouped);
-      setFetchStatus("success");
-      setExpandedBatches(new Set(Object.keys(grouped)));
-    } catch (err) {
-      console.error(err);
-      setFetchStatus("error");
-    }
-  };
+  // Derive filter options from fetched data
+  const batchOptions = Array.from(new Set(allResults.map(r => r.batch))).sort();
+  const semOptions   = Array.from(new Set(allResults.map(r => r.semester))).sort((a, b) => {
+    const aNum = parseInt(a.replace(/Sem\s*/i, ""));
+    const bNum = parseInt(b.replace(/Sem\s*/i, ""));
+    return aNum - bNum;
+  });
+  const typeOptions  = Array.from(new Set(allResults.map(r => r.resultType)));
 
-  const sortedBatches = Object.keys(results)
-    .filter(r => batchFilter ? r === batchFilter : true)
-    .sort();
+  const filtered = allResults.filter(r =>
+    (!batchFilter || r.batch === batchFilter) &&
+    (!semFilter   || r.semester === semFilter) &&
+    (!typeFilter  || r.resultType === typeFilter)
+  );
 
   return (
     <div className="space-y-6">
-      {/* Fetch Card */}
+      {/* Control Card */}
       <div className="premium-card p-6 sm:p-8 bg-white border border-indigo-100/60 shadow-lg">
         <div className="flex items-center space-x-3 mb-6">
           <div className="bg-violet-50 p-2 rounded-lg"><Database className="w-5 h-5 text-violet-600" /></div>
           <div>
             <h2 className="text-lg font-extrabold text-slate-800 tracking-tight">Check Stored Results</h2>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">View all result collections grouped by batch and semester</p>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">View all uploaded result metadata with full details</p>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 items-end">
-          <div className="space-y-2 w-full sm:w-auto">
-            <label className="label-premium">Course Type</label>
-            <div className="flex rounded-xl overflow-hidden border border-slate-200 shadow-sm">
-              {(["BTech", "MTech"] as CourseType[]).map((ct) => (
-                <button
-                  key={ct}
-                  onClick={() => { setCourseType(ct); setFetchStatus("idle"); setResults({}); }}
-                  className={`flex-1 py-2.5 px-5 text-sm font-extrabold transition-all ${courseType === ct ? "bg-indigo-600 text-white shadow-inner" : "bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"}`}
-                >
-                  {ct === "BTech" ? "B.Tech" : "M.Tech"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2 w-full sm:w-auto">
-            <label className="label-premium">Filter by Batch</label>
-            <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-              <span className="bg-slate-100 px-4 py-2.5 font-bold text-slate-600 text-sm">Y</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="22..etc"
-                className="input-prefix-inner uppercase w-20"
-                value={batchFilterNumber}
-                onChange={(e) => setBatchFilterNumber(e.target.value.replace(/[^0-9]/g, ''))}
-                maxLength={2}
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={fetchResults}
-            disabled={fetchStatus === "loading"}
-            className="btn-primary py-2.5 px-6 flex items-center gap-2 font-bold disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
-          >
-            {fetchStatus === "loading" ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /><span>Fetching...</span></>
-            ) : (
-              <><Search className="w-4 h-4" /><span>Fetch Stored Results</span></>
-            )}
-          </button>
-        </div>
-
-        {fetchStatus === "error" && (
-          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm font-medium">
-            Failed to fetch results. Please check your connection and try again.
+        {fetchStatus === "loading" && (
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-500">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Loading stored results...</span>
           </div>
         )}
 
-        {fetchStatus === "success" && sortedBatches.length === 0 && (
-          <div className="mt-6 text-center py-10 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
-            <span className="text-4xl block mb-3">🗂️</span>
-            <p className="text-slate-500 font-bold text-sm">No stored results found for {courseType}.</p>
-            <p className="text-slate-400 text-xs mt-1">Run bulk scraping first to populate results.</p>
+        {/* Filters — only show after fetch */}
+        {fetchStatus === "success" && allResults.length > 0 && (
+          <div className="mt-6 pt-5 border-t border-slate-100 flex flex-wrap gap-3 items-end">
+            <div className="space-y-1">
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Batch</label>
+              <select
+                value={batchFilter}
+                onChange={e => setBatchFilter(e.target.value)}
+                className="input-premium py-2 text-sm min-w-[110px]"
+              >
+                <option value="">All Batches</option>
+                {batchOptions.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Semester</label>
+              <select
+                value={semFilter}
+                onChange={e => setSemFilter(e.target.value)}
+                className="input-premium py-2 text-sm min-w-[110px]"
+              >
+                <option value="">All Semesters</option>
+                {semOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Result Type</label>
+              <select
+                value={typeFilter}
+                onChange={e => setTypeFilter(e.target.value)}
+                className="input-premium py-2 text-sm min-w-[130px]"
+              >
+                <option value="">All Types</option>
+                {typeOptions.map((t) => {
+                  const key = t.toString().trim().toLowerCase();
+                  return <option key={t} value={t}>{RESULT_TYPE_STYLES[key]?.label ?? t}</option>;
+                })}
+              </select>
+            </div>
+            {(batchFilter || semFilter || typeFilter) && (
+              <button
+                onClick={() => { setBatchFilter(""); setSemFilter(""); setTypeFilter(""); }}
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline underline-offset-2 pb-1"
+              >
+                Clear filters
+              </button>
+            )}
+            <span className="ml-auto text-xs font-bold text-slate-400 pb-1 self-end">
+              Showing {filtered.length} of {allResults.length}
+            </span>
+          </div>
+        )}
+
+        {fetchStatus === "error" && (
+          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm">
+            <p className="font-extrabold mb-1">
+              {errorMsg.toLowerCase().includes('index')
+                ? '⚠️ Firestore index error'
+                : errorMsg.toLowerCase().includes('permission')
+                ? '🔒 Permission denied'
+                : '❌ Failed to fetch results'}
+            </p>
+            <p className="font-medium opacity-80">
+              {errorMsg.toLowerCase().includes('index')
+                ? 'A Firestore composite index is required. Please create it in the Firebase Console or contact the developer.'
+                : errorMsg.toLowerCase().includes('permission')
+                ? 'You do not have permission to read results. Check Firestore security rules.'
+                : 'Please check your internet connection and try again.'}
+            </p>
           </div>
         )}
       </div>
 
-      {/* Batch Cards Grid */}
-      {fetchStatus === "success" && sortedBatches.length > 0 && (
-        <div className="space-y-5">
-          {sortedBatches.map((batch) => {
-            const batchData = results[batch];
-            const isExpanded = expandedBatches.has(batch);
-
-            // Sort semesters numerically, keep only those with data
-            const semKeys = Object.keys(batchData.semesters).sort((a, b) => {
-              return parseInt(a.replace("Sem", "")) - parseInt(b.replace("Sem", ""));
-            });
-
-            const totalTypes = semKeys.reduce((acc, k) => {
-              const s = batchData.semesters[k];
-              return acc + (s.regular ? 1 : 0) + (s.revaluation ? 1 : 0) + (s.supply ? 1 : 0);
-            }, 0);
-
-            return (
-              <div key={batch} className="premium-card bg-white border border-indigo-100/60 shadow-lg overflow-hidden">
-
-                {/* ── Batch Header ── */}
-                <button
-                  onClick={() => toggleBatch(batch)}
-                  className="w-full flex items-center justify-between px-6 py-4 hover:bg-indigo-50/30 transition-colors group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-md shrink-0">
-                      <span className="text-white font-extrabold text-sm tracking-wide">{batch}</span>
-                    </div>
-                    <div className="text-left">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-extrabold text-slate-800 text-base group-hover:text-indigo-700 transition-colors">
-                          {batch} Batch
-                        </h3>
-                        {batchData.lateralBatch && (
-                          <span className="text-[11px] font-bold text-purple-600 bg-purple-50 border border-purple-100 px-2.5 py-0.5 rounded-full">
-                            Includes {batchData.lateralBatch} Laterals
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-400 font-medium mt-0.5">
-                        {semKeys.length} semester{semKeys.length !== 1 ? "s" : ""} · {totalTypes} result collection{totalTypes !== 1 ? "s" : ""}
-                      </p>
-                    </div>
-                  </div>
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shrink-0 ${isExpanded ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500"}`}>
-                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  </div>
-                </button>
-
-                {/* ── Semester Grid ── */}
-                {isExpanded && (
-                  <div className="border-t border-slate-100 px-6 py-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {semKeys.map((semKey) => {
-                        const semData = batchData.semesters[semKey];
-                        const semNum = semKey.replace("Sem", "");
-                        const totalCount = semData.regularCount + semData.revaluationCount + semData.supplyCount;
-                        return (
-                          <div
-                            key={semKey}
-                            className="bg-white rounded-xl border border-slate-200 shadow-sm hover:border-indigo-200 hover:shadow-md transition-all p-4 text-center"
-                          >
-                            {/* Sem number badge */}
-                            <div className="flex justify-center mb-2">
-                              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
-                                <span className="text-white font-extrabold text-sm">S{semNum}</span>
-                              </div>
-                            </div>
-
-                            {/* Sem label */}
-                            <p className="font-extrabold text-slate-800 text-sm mb-0.5">Sem {semNum}</p>
-
-                            {/* Total count */}
-                            <p className="text-[11px] text-slate-400 font-semibold mb-3">
-                              {totalCount > 0 ? `${totalCount} records` : "All uploaded results"}
-                            </p>
-
-                            {/* Divider + Types + Dates */}
-                            <div className="border-t border-slate-100 pt-3 space-y-2">
-                              {[
-                                { type: "regular" as const, exists: semData.regular, count: semData.regularCount, date: semData.regularUploadedAt },
-                                { type: "revaluation" as const, exists: semData.revaluation, count: semData.revaluationCount, date: semData.revaluationUploadedAt },
-                                { type: "supply" as const, exists: semData.supply, count: semData.supplyCount, date: semData.supplyUploadedAt },
-                              ].filter(t => t.exists).map(({ type, count, date }) => (
-                                <div key={type} className="flex flex-col items-center gap-0.5">
-                                  <TypeBadge type={type} exists count={count} />
-                                  <span className="text-[10px] text-slate-400 font-medium">
-                                    {date
-                                      ? date.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
-                                      : "No upload date"}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      {/* Results Grid */}
+      {fetchStatus === "success" && (
+        <>
+          {filtered.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200 shadow-sm">
+              <span className="text-5xl block mb-4">🗂️</span>
+              <p className="text-slate-600 font-bold text-base">No stored results found</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filtered.map(item => <ResultCard key={item.id} item={item} />)}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
+
 
 // ─── Bulk Scraping Tab ────────────────────────────────────────────────────────
 
 function BulkScrapingTab() {
   const [courseType, setCourseType] = useState<CourseType>("BTech");
   const [batchNumber, setBatchNumber] = useState("");
-  const [selectedSemester, setSelectedSemester] = useState("4");
-  const [selectedType, setSelectedType] = useState("regular");
+  const [selectedSemester, setSelectedSemester] = useState("");
+  const [selectedType, setSelectedType] = useState("");
   const [rsurl, setRsurl] = useState("");
 
   // Derived value - always has Y prefix
@@ -489,11 +447,35 @@ function BulkScrapingTab() {
         formData.append("endRoll", range.end);
         formData.append("rsurl", rsurl);
         formData.append("resultType", resultType);
+        formData.append("courseType", courseType);
+        formData.append("batch", selectedBatch);
+        formData.append("semester", selectedSemester);
+        formData.append("scrapeType", selectedType);
         const res = await fetch("/api/bulk-scrape", { method: "POST", body: formData });
         const data = await res.json();
         if (!res.ok) { setBulkError(data.error || "Failed to start bulk scraping."); allSuccess = false; break; }
       }
-      if (allSuccess) setShowSuccess(true);
+
+      if (allSuccess) {
+        const courseTypeLabel = courseType === "BTech" ? "B.Tech" : "M.Tech";
+        const semLabel = selectedSemester ? `Sem ${selectedSemester}` : "";
+        const typeLabel =
+          selectedType === "regular" ? "Regular" :
+          selectedType === "supply" ? "Supply" :
+          selectedType === "revaluation" ? "Revaluation" :
+          selectedType;
+
+        await addDoc(collection(db, "results"), {
+          courseType: courseTypeLabel,
+          batch: selectedBatch,
+          semester: semLabel,
+          scrapeType: typeLabel,
+          rsurl,
+          resultType: typeLabel,
+          createdAt: serverTimestamp(),
+        });
+        setShowSuccess(true);
+      }
     } catch (err) {
       setBulkError("Failed to start bulk scraping: " + (err instanceof Error ? err.message : String(err)));
     } finally {
@@ -628,12 +610,14 @@ function BulkScrapingTab() {
           <div className="space-y-1">
             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Semester</label>
             <select value={selectedSemester} onChange={(e) => setSelectedSemester(e.target.value)} className="input-premium py-2 cursor-pointer">
+              <option value="" disabled>Select semester</option>
               {semesterOptions.map((s) => <option key={s} value={String(s)}>Sem {s}</option>)}
             </select>
           </div>
           <div className="space-y-1">
             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Scrape Type</label>
             <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="input-premium py-2 cursor-pointer">
+              <option value="" disabled>Select type</option>
               <option value="regular">Regular</option>
               <option value="supply">Supply</option>
               <option value="revaluation">Revaluation</option>

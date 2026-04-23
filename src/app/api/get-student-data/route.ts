@@ -65,7 +65,7 @@ async function buildCurriculumMap(
 
         map.set(rawCode, {
           code: rawCode,
-          credits: Number(s.Credit || s.credits || 0),
+          credits: Number(s.credit || s.Credit || s.credits || 0),
           maxMarks: maxMarks ?? 100,
           subjectName: s.subjectName || s.name || s.description || '',
           order: Number.isNaN(orderValue) ? idx + 1 : orderValue,

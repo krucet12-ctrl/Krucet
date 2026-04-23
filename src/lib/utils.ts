@@ -86,6 +86,70 @@ export const getCurrentAcademicYear = (): string => {
   return `${currentYear}-${nextYear}`;
 };
 
+/**
+ * Converts any date-like value into a readable DD/MM/YYYY string.
+ * Handles:
+ *  - Excel serial date numbers (e.g. 37343 → 01/01/2002)
+ *  - Firestore Timestamps (objects with .toDate())
+ *  - JS Date objects
+ *  - ISO strings and other parseable date strings
+ */
+export const formatDateValue = (value: any): string => {
+  if (value === null || value === undefined || value === '') return '';
+
+  // Excel serial date (e.g. 37343)
+  if (typeof value === 'number' && value > 1000 && value < 200000) {
+    // Excel epoch starts at Dec 30, 1899
+    const excelEpoch = new Date(1899, 11, 30);
+    const date = new Date(excelEpoch.getTime() + value * 86400000);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString('en-GB'); // DD/MM/YYYY
+    }
+  }
+
+  // Firestore Timestamp (has .toDate() method)
+  if (value && typeof value === 'object' && typeof value.toDate === 'function') {
+    const date = value.toDate();
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString('en-GB');
+    }
+  }
+
+  // JS Date object
+  if (value instanceof Date) {
+    if (!isNaN(value.getTime())) {
+      return value.toLocaleDateString('en-GB');
+    }
+  }
+
+  // String or any other value — try parsing
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString('en-GB');
+    }
+    return value; // Return as-is if not a recognisable date string
+  }
+
+  return String(value);
+};
+
+/**
+ * Scans all keys in an object and converts any field whose key contains
+ * "date" or "dob" (case-insensitive) using formatDateValue.
+ * Call this before saving Excel/CSV data to Firestore or displaying it.
+ */
+export const sanitizeDatesInObject = (obj: Record<string, any>): Record<string, any> => {
+  const result: Record<string, any> = { ...obj };
+  Object.keys(result).forEach((key) => {
+    const lk = key.toLowerCase().replace(/[\s_\-\.]/g, '');
+    if (lk.includes('date') || lk.includes('dob')) {
+      result[key] = formatDateValue(result[key]);
+    }
+  });
+  return result;
+};
+
 // Parses Krishna University result HTML into ParsedResult
 export const parseResultHTML = (html: string): import("../lib/types").ParsedResult | null => {
   try {

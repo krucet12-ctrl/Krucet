@@ -7,8 +7,6 @@ import {
   getRegulationForRollNumber,
   getCurriculumMaxMarks
 } from '../../../lib/firebaseService';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, serverTimestamp, query, where } from 'firebase/firestore';
 import { parseResultHTML } from '../../../lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -54,10 +52,14 @@ export async function POST(req: NextRequest) {
         endRoll: formData.get('endRoll'),
         rsurl: formData.get('rsurl'),
         resultType: formData.get('resultType'),
+        courseType: formData.get('courseType'),
+        batch: formData.get('batch'),
+        semester: formData.get('semester'),
+        scrapeType: formData.get('scrapeType'),
       };
     }
 
-    const { startRoll, endRoll, rsurl, resultType } = body;
+    const { startRoll, endRoll, rsurl, resultType, courseType: ctField, batch: batchField, semester: semField, scrapeType: scrapeTypeField } = body;
     
     if (!startRoll || !endRoll || !rsurl || !resultType) {
       return NextResponse.json({ 
@@ -77,7 +79,12 @@ export async function POST(req: NextRequest) {
     // Start scraping in background
     setTimeout(async () => {
       try {
-        await performBulkScrape("", startRoll, endRoll, rsurl, resultType);
+        await performBulkScrape("", startRoll, endRoll, rsurl, resultType, {
+          courseType: ctField || '',
+          batch: batchField || '',
+          semester: semField || '',
+          scrapeType: scrapeTypeField || '',
+        });
       } catch (error: unknown) {
         console.error('Background scraping error:', error);
       }
@@ -108,7 +115,8 @@ async function performBulkScrape(
   startRoll: string, 
   endRoll: string, 
   rsurl: string,
-  resultType: string
+  resultType: string,
+  meta?: { courseType: string; batch: string; semester: string; scrapeType: string }
 ) {
   const rollStatus: Record<string, 'pending' | 'success' | 'error'> = {};
 
@@ -162,42 +170,6 @@ async function performBulkScrape(
       if (i + CHUNK_SIZE < rollNumbers.length) {
         await new Promise(resolve => setTimeout(resolve, 300));
       }
-    }
-
-    // Save result metadata to "results" collection once after all processing
-    try {
-      const parts = resultType.split('-');
-      const batch = parts[1] || '';
-      const semMatch = resultType.match(/Sem(\d+)/i);
-      const semester = semMatch ? `Sem${semMatch[1]}` : 'Sem1';
-      
-      let resultTypeValue = 'regular';
-      if (resultType.toLowerCase().includes('rvresults')) {
-        resultTypeValue = 'revaluation';
-      } else if (resultType.toLowerCase().includes('supplyresults')) {
-        resultTypeValue = 'supply';
-      }
-
-      const existingQuery = query(
-        collection(db, 'results'),
-        where('batch', '==', batch),
-        where('semester', '==', semester),
-        where('resultType', '==', resultTypeValue)
-      );
-      const existingSnap = await getDocs(existingQuery);
-      
-      if (existingSnap.empty) {
-        await addDoc(collection(db, 'results'), {
-          courseType,
-          batch,
-          semester,
-          resultType: resultTypeValue,
-          rsurl: `${courseType}${semester}${resultTypeValue}-${batch}`,
-          createdAt: serverTimestamp()
-        });
-      }
-    } catch (err) {
-      console.warn('Failed to save result metadata:', err);
     }
 
   } catch (error: unknown) {

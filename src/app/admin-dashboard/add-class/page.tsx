@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Edit3, Save, Search, RefreshCw, ShieldCheck } from 'lucide-react';
-import * as xlsx from 'xlsx';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { sanitizeDatesInObject } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface DetectedRange {
@@ -46,6 +46,15 @@ function AddClassTab() {
     const [detectedRanges, setDetectedRanges] = useState<DetectedRange[]>([]);
     const [parsedDataMap, setParsedDataMap] = useState<Record<string, any>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const workerRef = useRef<Worker | null>(null);
+    const [parseProgress, setParseProgress] = useState<{ stage: string; current: number; total: number }>({ stage: '', current: 0, total: 0 });
+
+    useEffect(() => {
+        return () => {
+            workerRef.current?.terminate();
+            workerRef.current = null;
+        };
+    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -62,60 +71,41 @@ function AddClassTab() {
         if (!file) { setErrorMsg('Please upload an Excel file.'); return; }
         if (!regulationNumber.trim()) { setErrorMsg('Please enter a regulation (e.g., 20).'); return; }
         setStatus('parsing'); setErrorMsg('');
+        setParseProgress({ stage: 'starting', current: 0, total: 0 });
         try {
-            const data = await file.arrayBuffer();
-            const workbook = xlsx.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = xlsx.utils.sheet_to_json<any>(firstSheet);
-            const students: Array<{ rollNo: string; batch: string; branch: string }> = [];
-            const seenRolls = new Set<string>();
-            const extractedMap: Record<string, any> = {};
+            workerRef.current?.terminate();
+            workerRef.current = null;
 
-            for (const row of jsonData) {
-                if (typeof row === 'object' && row !== null) {
-                    for (const key of Object.keys(row)) {
-                        const cell = row[key];
-                        if (cell !== undefined && cell !== null) {
-                            const strVal = String(cell).trim().toUpperCase();
-                            const extractMatch = strVal.match(/([YL]\d{2}[A-Z]{2,6}\d{3,})/);
-                            if (extractMatch) {
-                                const rollNo = extractMatch[1];
-                                const parseReq = rollNo.match(/^([YL]\d{2})([A-Z]{2,6})(\d+)$/);
-                                if (parseReq) {
-                                    const batch = parseReq[1];
-                                    let branch = parseReq[2];
-                                    if (branch === 'AIM') branch = 'AIML';
-                                    if (!seenRolls.has(rollNo)) {
-                                        seenRolls.add(rollNo);
-                                        students.push({ rollNo, batch, branch });
-                                        extractedMap[rollNo] = row;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
+            const worker = new Worker(new URL('../../../workers/excelWorker.ts', import.meta.url), { type: 'module' });
+            workerRef.current = worker;
+
+            worker.onmessage = (ev: MessageEvent<any>) => {
+                const msg = ev.data;
+                if (!msg || typeof msg !== 'object') return;
+                if (msg.type === 'progress') {
+                    setParseProgress({ stage: msg.stage || '', current: msg.current || 0, total: msg.total || 0 });
+                    return;
                 }
-            }
-
-            if (students.length === 0) throw new Error('No valid roll numbers found. Make sure roll numbers match structures like Y22CSE101 or L23ECE123.');
-
-            const groups: { [key: string]: DetectedRange } = {};
-            for (const student of students) {
-                const type = (student.batch.startsWith('L') || student.rollNo.startsWith('L')) ? 'Lateral' : 'Regular';
-                const key = `${student.batch}_${student.branch}_${type}`;
-                if (!groups[key]) {
-                    groups[key] = { id: key, startRoll: student.rollNo, endRoll: student.rollNo, batch: student.batch, branch: student.branch, type };
-                } else {
-                    if (student.rollNo < groups[key].startRoll) groups[key].startRoll = student.rollNo;
-                    if (student.rollNo > groups[key].endRoll) groups[key].endRoll = student.rollNo;
+                if (msg.type === 'result') {
+                    setDetectedRanges(msg.detectedRanges || []);
+                    setParsedDataMap(msg.parsedDataMap || {});
+                    setStatus('idle');
+                    setStep(2);
+                    return;
                 }
-            }
+                if (msg.type === 'error') {
+                    setStatus('error');
+                    setErrorMsg(msg.message || 'An error occurred during parsing.');
+                    return;
+                }
+            };
 
-            setDetectedRanges(Object.values(groups));
-            setParsedDataMap(extractedMap);
-            setStatus('idle');
-            setStep(2);
+            worker.onerror = (err) => {
+                setStatus('error');
+                setErrorMsg(err.message || 'An error occurred during parsing.');
+            };
+
+            worker.postMessage({ type: 'parse', file });
         } catch (err: any) {
             setStatus('error');
             setErrorMsg(err.message || 'An error occurred during parsing.');
@@ -131,6 +121,16 @@ function AddClassTab() {
         try {
             const finalStudents: Array<{ rollNo: string; batch: string; branch: string }> = [];
             const uniqueRolls = new Set<string>();
+
+            let generated = 0;
+            const yieldToUI = () =>
+                new Promise<void>((resolve) => {
+                    if (typeof (window as any).requestIdleCallback === 'function') {
+                        (window as any).requestIdleCallback(() => resolve(), { timeout: 50 });
+                    } else {
+                        setTimeout(() => resolve(), 0);
+                    }
+                });
 
             for (const range of detectedRanges) {
                 const startMatch = range.startRoll.match(/^([A-Z0-9]+?)(\d+)$/i);
@@ -148,7 +148,10 @@ function AddClassTab() {
                                 let sBatch = range.batch, sBranch = range.branch;
                                 const p = rollNo.match(/^([YL]\d{2})([A-Z]{2,6})(\d+)$/i);
                                 if (p) { sBatch = p[1].toUpperCase(); sBranch = p[2].toUpperCase(); if (sBranch === 'AIM') sBranch = 'AIML'; }
-                                finalStudents.push({ ...parsedDataMap[rollNo] || {}, rollNo, batch: sBatch, branch: sBranch });
+                                const rawRow = parsedDataMap[rollNo] || {};
+                                finalStudents.push({ ...sanitizeDatesInObject(rawRow), rollNo, batch: sBatch, branch: sBranch });
+                                generated++;
+                                if (generated % 100 === 0) await yieldToUI();
                             }
                         }
                     } else {
@@ -161,7 +164,10 @@ function AddClassTab() {
                             let sBatch = range.batch, sBranch = range.branch;
                             const p = roll.match(/^([YL]\d{2})([A-Z]{2,6})(\d+)$/i);
                             if (p) { sBatch = p[1].toUpperCase(); sBranch = p[2].toUpperCase(); if (sBranch === 'AIM') sBranch = 'AIML'; }
-                            finalStudents.push({ ...parsedDataMap[roll] || {}, rollNo: roll, batch: sBatch, branch: sBranch });
+                            const rawRow2 = parsedDataMap[roll] || {};
+                            finalStudents.push({ ...sanitizeDatesInObject(rawRow2), rollNo: roll, batch: sBatch, branch: sBranch });
+                            generated++;
+                            if (generated % 100 === 0) await yieldToUI();
                         }
                     }
                 }
@@ -170,7 +176,7 @@ function AddClassTab() {
             if (finalStudents.length === 0) throw new Error('No students generated from ranges.');
             setProgress({ current: 0, total: finalStudents.length });
 
-            const CHUNK_SIZE = 400;
+            const CHUNK_SIZE = 100;
             const uniqueBatches = new Set<string>();
             for (let i = 0; i < finalStudents.length; i += CHUNK_SIZE) {
                 const chunk = finalStudents.slice(i, i + CHUNK_SIZE);
@@ -184,6 +190,7 @@ function AddClassTab() {
                 try { res = await req.json(); } catch { throw new Error('Server returned an invalid response.'); }
                 if (!req.ok || !res.success) throw new Error(res.error || `Upload failed at chunk ${Math.floor(i / CHUNK_SIZE) + 1}`);
                 setProgress(p => ({ ...p, current: Math.min(p.current + CHUNK_SIZE, p.total) }));
+                await yieldToUI();
             }
 
             setStatus('completed');
@@ -261,14 +268,38 @@ function AddClassTab() {
                             </div>
                         </div>
 
-                        <button onClick={parseExcel} disabled={status === 'parsing' || !file || !regulationNumber.trim()}
+                        <button onClick={parseExcel} disabled={status === 'parsing' || status === 'uploading' || !file || !regulationNumber.trim()}
                             className="w-full btn-primary py-3 flex items-center justify-center font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all">
                             {status === 'parsing' ? (
-                                <div className="flex items-center space-x-2"><Loader2 className="w-5 h-5 animate-spin text-white" /><span>Parsing File...</span></div>
+                                <div className="flex items-center space-x-2"><Loader2 className="w-5 h-5 animate-spin text-white" /><span>Parsing Excel... Please wait</span></div>
                             ) : (
                                 <div className="flex items-center space-x-2"><Search className="w-5 h-5 text-white" /><span>Parse Excel & View Ranges</span></div>
                             )}
                         </button>
+
+                        {status === 'parsing' && (
+                            <div className="bg-indigo-50 border border-indigo-200 text-indigo-700 p-5 rounded-xl shadow-sm transition-all duration-300 animate-fade-in-up">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-xs font-bold text-indigo-600 mb-1">
+                                        <span>Parsing Excel... Please wait</span>
+                                        <span>
+                                            {parseProgress.total > 0 ? `${parseProgress.current} / ${parseProgress.total}` : '...'}
+                                        </span>
+                                    </div>
+                                    <div className="w-full bg-indigo-100 rounded-full h-2.5 overflow-hidden">
+                                        <div
+                                            className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                                            style={{ width: `${parseProgress.total > 0 ? (parseProgress.current / parseProgress.total) * 100 : 8}%` }}
+                                        />
+                                    </div>
+                                    {parseProgress.stage && (
+                                        <div className="text-[11px] font-bold text-indigo-700/80 uppercase tracking-widest">
+                                            {parseProgress.stage}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

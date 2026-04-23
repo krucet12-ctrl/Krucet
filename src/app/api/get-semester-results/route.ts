@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         grade,
         pass: passed,
         attempts: resultData.attempts,
-        credits: curriculumSubject?.Credit || 0,
+        credits: (curriculumSubject?.credit ?? curriculumSubject?.Credit ?? curriculumSubject?.credits ?? 0),
         maxMarks: resultMaxMarks,
       };
     });

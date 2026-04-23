@@ -9,9 +9,11 @@ import { ArrowLeft } from 'lucide-react';
 
 interface SubjectEntry {
   code: string;
-  Credit: number;
+  credit: number;
   maxMarks: number;
 }
+
+const MAX_MARKS_OPTIONS = [50,100,200] as const;
 
 const DEPT_OPTIONS = {
   BTech: ["CSE", "ECE", "AIML"],
@@ -53,7 +55,7 @@ export default function ManageCurriculumPage() {
         const data = snap.data();
         const fetchedSubjects = (data.Subjects || []).map((s: any) => ({
           code: s.code || '',
-          Credit: s.Credit || s.credits || 0,
+          credit: s.credit || s.Credit || s.credits || 0,
           maxMarks: s.maxMarks || 100 // Default old ones to 100
         }));
         setSubjects(fetchedSubjects);
@@ -86,9 +88,9 @@ export default function ManageCurriculumPage() {
     }
 
     // Validate values
-    const hasInvalidMarks = subjects.some(s => s.maxMarks !== 100 && s.maxMarks !== 50);
+    const hasInvalidMarks = subjects.some(s => !MAX_MARKS_OPTIONS.includes(s.maxMarks as any));
     if (hasInvalidMarks) {
-      setMessage({ text: 'Max Marks must be strictly 50 or 100.', type: 'error' });
+      setMessage({ text: 'Max Marks must be one of: 50, 75, 100, 150, 200.', type: 'error' });
       return;
     }
 
@@ -100,7 +102,7 @@ export default function ManageCurriculumPage() {
       await setDoc(docRef, {
         Subjects: subjects.map(s => ({
           code: safeTrim(s.code).toUpperCase(),
-          Credit: Number(s.Credit),
+          credit: Number(s.credit),
           maxMarks: Number(s.maxMarks)
         }))
       });
@@ -114,7 +116,7 @@ export default function ManageCurriculumPage() {
   };
 
   const handleAddSubject = () => {
-    setSubjects([...subjects, { code: '', Credit: 3, maxMarks: 100 }]);
+    setSubjects([...subjects, { code: '', credit: 3, maxMarks: 100 }]);
   };
 
   const handleRemoveSubject = (index: number) => {
@@ -298,8 +300,8 @@ export default function ManageCurriculumPage() {
                         <td className="px-5 py-3">
                           <input
                             type="number"
-                            value={sub.Credit}
-                            onChange={e => handleSubjectChange(idx, 'Credit', parseFloat(e.target.value))}
+                            value={sub.credit}
+                            onChange={e => handleSubjectChange(idx, 'credit', parseFloat(e.target.value))}
                             className="input-premium py-1.5 px-3 text-sm text-center cursor-text bg-white group-hover/row:bg-slate-50"
                             min={0}
                             step={0.5}
@@ -311,8 +313,9 @@ export default function ManageCurriculumPage() {
                             onChange={e => handleSubjectChange(idx, 'maxMarks', parseInt(e.target.value))}
                             className="input-premium py-1.5 px-3 text-sm cursor-pointer bg-white group-hover/row:bg-slate-50"
                           >
-                            <option value={100}>100 Marks</option>
-                            <option value={50}>50 Marks</option>
+                            {MAX_MARKS_OPTIONS.map((m) => (
+                              <option key={m} value={m}>{m} Marks</option>
+                            ))}
                           </select>
                         </td>
                         <td className="px-5 py-3 text-center">

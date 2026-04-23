@@ -78,7 +78,7 @@ const AdminLogin: React.FC = () => {
                 id="email"
                 type="email"
                 autoComplete="off"
-                placeholder="admin@university.edu"
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}

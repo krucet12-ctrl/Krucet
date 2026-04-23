@@ -108,11 +108,6 @@ const CheckGpaPage = () => {
     const studentRoll = studentInfo?.roll || '';
     const studentBranch = studentInfo?.branch || '';
 
-    const getCourse = (rollNo: string) => {
-      if (!rollNo) return 'B.Tech';
-      return 'B.Tech';
-    };
-
     const getRegulation = (rollNo: string) => {
       const match = rollNo.match(/^([YL]\d{2})/i);
       if (!match) return 'R20';
@@ -121,28 +116,9 @@ const CheckGpaPage = () => {
       return 'R20';
     };
 
-    const course = getCourse(studentRoll);
     const regulation = getRegulation(studentRoll);
-
-    const semesterRows = semestersWithResults
-      .map((sem) => {
-        const semDetail = semesterDetails[sem] || { credits: null, gpa: null };
-        const totalCredits = semDetail.credits ?? 0;
-        const earnedCredits = semDetail.gpa ? totalCredits : 0;
-        const sgpa = semDetail.gpa !== null && semDetail.gpa !== undefined ? semDetail.gpa.toFixed(2) : '-';
-
-        return `
-          <tr>
-            <td>${sem.replace('SEM', 'Semester ')}</td>
-            <td class="center">${totalCredits}</td>
-            <td class="center">${earnedCredits}</td>
-            <td class="center">${sgpa}</td>
-          </tr>
-        `;
-      })
-      .join('');
-
     const finalCGPA = cgpa ? Number(cgpa) : null;
+
     const classAwarded = finalCGPA !== null
       ? finalCGPA >= 8.0 ? 'First Class with Distinction'
         : finalCGPA >= 7.0 ? 'First Class'
@@ -151,128 +127,190 @@ const CheckGpaPage = () => {
         : 'Fail'
       : 'N/A';
 
-    const currentDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const totalCreditsAll = semestersWithResults.reduce(
+      (acc, sem) => acc + (semesterDetails[sem]?.credits ?? 0), 0
+    );
+    const totalGradePoints = semestersWithResults.reduce(
+      (acc, sem) => acc + (semesterDetails[sem]?.gradePoints ?? 0), 0
+    );
 
-    const printWindow = window.open('', '', 'height=900,width=680');
+    const currentDate = new Date().toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric'
+    });
+
+    const semRows = semestersWithResults.map((sem) => {
+      const d = semesterDetails[sem] || { credits: null, gpa: null, gradePoints: null };
+      const semLabel = sem.replace('SEM', 'Semester ');
+      const sgpa = d.gpa !== null && d.gpa !== undefined ? Number(d.gpa).toFixed(2) : '-';
+      const credits = d.credits ?? '-';
+      const gpoints = d.gradePoints ?? '-';
+      return `
+        <tr>
+          <td>${semLabel}</td>
+          <td class="center">${credits}</td>
+          <td class="center">${gpoints}</td>
+          <td class="center bold">${sgpa}</td>
+        </tr>`;
+    }).join('');
+
+    // Month & Year of most recent semester exam
+    const lastSem = semestersWithResults[semestersWithResults.length - 1] || '';
+    const lastSemNum = parseInt(lastSem.replace('SEM', '')) || 0;
+    const examMonthYear = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+
+    // Group semesters by year for display
+    const yearGroups: { label: string; sems: string[] }[] = [
+      { label: 'I YEAR', sems: semestersWithResults.filter(s => [1,2].includes(parseInt(s.replace('SEM','')))) },
+      { label: 'II YEAR', sems: semestersWithResults.filter(s => [3,4].includes(parseInt(s.replace('SEM','')))) },
+      { label: 'III YEAR', sems: semestersWithResults.filter(s => [5,6].includes(parseInt(s.replace('SEM','')))) },
+      { label: 'IV YEAR', sems: semestersWithResults.filter(s => [7,8].includes(parseInt(s.replace('SEM','')))) },
+    ].filter(g => g.sems.length > 0);
+
+    const semTableRows = yearGroups.map(group => {
+      const yearRow = `<tr style="background:#e8e8e8"><td colspan="5" style="font-weight:800;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;padding:4px 7px">${group.label}</td></tr>`;
+      const semRows = group.sems.map(sem => {
+        const d = semesterDetails[sem] || { credits: null, gpa: null, gradePoints: null };
+        const semInYear = parseInt(sem.replace('SEM','')) % 2 === 1 ? 'I Semester' : 'II Semester';
+        const sgpa = d.gpa !== null && d.gpa !== undefined ? Number(d.gpa).toFixed(2) : '-';
+        return `<tr>
+          <td style="padding-left:14px">${semInYear}</td>
+          <td class="center">${d.credits ?? '-'}</td>
+          <td class="center">${d.gradePoints ?? '-'}</td>
+          <td class="center bold">${sgpa}</td>
+        </tr>`;
+      }).join('');
+      return yearRow + semRows;
+    }).join('');
+
+    const printWindow = window.open('', '', 'height=900,width=730');
     if (!printWindow) return;
 
     printWindow.document.write(`
       <html>
         <head>
-          <title>Student Information Certificate - ${studentRoll}</title>
+          <title>Temporary CMM - ${studentRoll}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
-            @page { size: A4 portrait; margin: 10mm; }
-            * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            html, body { margin: 0; padding: 0; width: 210mm; min-height: 297mm; background: #fff; color: #111827; font-family: 'Inter', sans-serif; }
+            @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;600;700&display=swap');
+            @page { size: A4 portrait; margin: 10mm 12mm; }
+            *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            html, body { margin: 0; padding: 0; background: #fff; color: #000; font-family: 'Source Sans 3', sans-serif; font-size: 11px; }
 
-            .memo-outer { border: 1px solid #333; padding: 1mm; width: 210mm; margin: 0 auto; background: #fff; }
-            .memo-inner { border: 2px solid #333; padding: 14px 20px; }
+            .cmm-wrap { border: 2.5px solid #000; padding: 3px; width: 100%; }
+            .cmm-inner { border: 1px solid #000; padding: 16px 20px 14px; }
 
-            .header { display: flex; align-items: center; justify-content: center; margin-bottom: 12px; border-bottom: 1px solid #000; padding-bottom: 8px; gap: 12px; flex-wrap: wrap; }
-            .logo { width: 70px; height: 70px; object-fit: contain; flex-shrink: 0; }
-            .text-container { flex: 1; min-width: 0; text-align: center; }
-            .university-name { font-family: 'Crimson Pro', serif; font-size: 22px; font-weight: 800; margin: 0; text-transform: uppercase; color: #000; white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
-            .header h2 { font-size: 13px; font-weight: 700; margin: 4px 0 0; color: #333; }
-            .header p { font-size: 10px; margin: 2px 0; color: #555; font-weight: 500; }
-            .memo-title { margin-top: 10px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+            /* Header */
+            .hdr { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 10px; }
+            .hdr-logo { width: 64px; height: 64px; object-fit: contain; display: block; margin: 0 auto 6px; }
+            .hdr-univ { font-family: 'EB Garamond', serif; font-size: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.2; margin: 0; }
+            .hdr-addr { font-size: 11px; color: #222; margin: 3px 0 0; font-weight: 500; }
+            .hdr-title { display: inline-block; margin-top: 9px; border: 1px solid #000; padding: 3px 22px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
 
-            @media screen and (max-width: 768px) {
-              .header { flex-direction: column; align-items: flex-start; }
-              .text-container { text-align: left; }
-              .university-name { font-size: 16px; line-height: 1.3; }
-            }
+            /* Student Details */
+            .stu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; border: 1px solid #000; padding: 8px 12px; margin-bottom: 10px; }
+            .field { display: flex; align-items: baseline; margin-bottom: 5px; }
+            .lbl { font-weight: 700; font-size: 10px; text-transform: uppercase; width: 150px; flex-shrink: 0; color: #333; }
+            .val { font-weight: 600; font-size: 11px; border-bottom: 1px dotted #999; flex: 1; padding-left: 6px; min-height: 15px; }
 
-            .section { margin-bottom: 10px; }
-            .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 4px; margin-bottom: 8px; }
-            .details-grid { display: grid; grid-template-columns: 130px 1fr; gap: 6px 14px; }
-            .field { display: flex; }
-            .label { font-weight: 700; width: 130px; text-transform: uppercase; font-size: 10px; color: #444; }
-            .value { font-weight: 600; color: #111827; border-bottom: 1px dotted #ccc; padding-left: 4px; }
+            /* Table */
+            table { width: 100%; border-collapse: collapse; margin-bottom: 10px; page-break-inside: avoid; font-size: 11px; }
+            th { border: 1px solid #000; padding: 5px 7px; background: #f0f0f0; font-weight: 700; text-transform: uppercase; font-size: 10px; text-align: center; }
+            th.left { text-align: left; }
+            td { border: 1px solid #000; padding: 5px 7px; }
+            td.center { text-align: center; }
+            td.bold { font-weight: 700; }
 
-            .table { width: 100%; border-collapse: collapse; margin-top: 8px; page-break-inside: avoid; }
-            .table th, .table td { border: 1px solid #000; padding: 6px; font-size: 11px; }
-            .table th { background: #f2f2f2; font-weight: 700; text-transform: uppercase; }
-            .center { text-align: center; }
+            /* Summary */
+            .summary-bar { display: flex; border: 1px solid #000; margin-bottom: 12px; }
+            .sum-cell { flex: 1; padding: 7px 8px; text-align: center; border-right: 1px solid #000; }
+            .sum-cell:last-child { border-right: none; }
+            .sum-val { font-family: 'EB Garamond', serif; font-size: 20px; font-weight: 800; display: block; line-height: 1; }
+            .sum-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #555; letter-spacing: 0.05em; display: block; margin-top: 2px; }
 
-            .footer { display: flex; justify-content: space-between; margin-top: 18px; align-items: flex-start; font-size: 10px; }
-            .date-sec { font-weight: 600; }
-            .sign-block { width: 48%; text-align: right; }
-            .sign-line { margin-top: 25px; width: 180px; border-bottom: 1px solid #334155; }
+            /* Footer */
+            .footer { margin-top: 12px; border-top: 1px solid #000; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+            .footer-date { font-size: 10px; font-weight: 600; }
+            .footer-stamp { text-align: center; }
+            .stamp-text { font-family: 'EB Garamond', serif; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border: 1.5px solid #000; padding: 4px 18px; display: inline-block; }
 
             @media print {
-              @page { size: A4 portrait; margin: 10mm; }
-              body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .print-hidden, button, input, .hidden-print, .navbar, nav, .btn-primary, .btn-secondary, .input-premium { display: none !important; }
-              .memo-outer { border: none; margin: 0; width: 100%; padding: 0; }
-              .memo-inner { border: none; padding: 0; }
-              .section, .details-grid, .table { page-break-inside: avoid; }
+              html, body { background: #fff; }
+              .cmm-wrap { border: 2.5px solid #000 !important; }
+              .cmm-inner { border: 1px solid #000 !important; }
+              table { page-break-inside: avoid; }
             }
           </style>
         </head>
         <body>
-          <div class="memo-outer">
-            <div class="memo-inner">
-              <div class="header">
-                <img src="${logoUrl}" alt="University Logo" class="logo" />
-                <div class="text-container">
-                  <h1 class="university-name">${UNIVERSITY_NAME}</h1>
-                  <h2>${COLLEGE_NAME}</h2>
-                  <p>${COLLEGE_ADDRESS}</p>
-                  <div class="memo-title">Student Information Certificate</div>
+          <div class="cmm-wrap">
+            <div class="cmm-inner">
+
+              <!-- Header -->
+              <div class="hdr">
+                <img src="${logoUrl}" alt="Logo" class="hdr-logo" />
+                <div class="hdr-univ">KRISHNA UNIVERSITY</div>
+                <div class="hdr-addr">Machilipatnam – 521004, ANDHRA PRADESH, INDIA</div>
+                <div class="hdr-title">Consolidated Marks Memo / Credit Sheet</div>
+              </div>
+
+              <!-- Student Details -->
+              <div class="stu-grid">
+                <div class="field"><span class="lbl">Student Name</span><span class="val">${studentName || '-'}</span></div>
+                <div class="field"><span class="lbl">Hall Ticket No</span><span class="val">${studentRoll || '-'}</span></div>
+                <div class="field"><span class="lbl">College Name</span><span class="val">${COLLEGE_NAME}</span></div>
+                <div class="field"><span class="lbl">Month &amp; Year of Exam</span><span class="val">${examMonthYear}</span></div>
+                <div class="field"><span class="lbl">Year of Admission</span><span class="val">20${studentRoll.substring(1, 3) || '__'}</span></div>
+                <div class="field"><span class="lbl">Class Awarded</span><span class="val">${classAwarded}</span></div>
+              </div>
+
+              <!-- Semester-wise Table -->
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left" style="width:28%">Semester</th>
+                    <th style="width:22%">Credits Registered</th>
+                    <th style="width:22%">Grade Points Earned</th>
+                    <th style="width:20%">SGPA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${semTableRows || '<tr><td colspan="4" class="center">No semester data available</td></tr>'}
+                  <tr style="background:#f0f0f0">
+                    <td class="bold">Total</td>
+                    <td class="center bold">${totalCreditsAll}</td>
+                    <td class="center bold">${totalGradePoints}</td>
+                    <td class="center bold">—</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Summary Bar -->
+              <div class="summary-bar">
+                <div class="sum-cell">
+                  <span class="sum-val">${totalCreditsAll}</span>
+                  <span class="sum-lbl">Credits Registered</span>
+                </div>
+                <div class="sum-cell">
+                  <span class="sum-val">${totalGradePoints}</span>
+                  <span class="sum-lbl">Aggregate Marks / Points</span>
+                </div>
+                <div class="sum-cell">
+                  <span class="sum-val">${finalCGPA !== null ? finalCGPA.toFixed(2) : 'N/A'}</span>
+                  <span class="sum-lbl">CGPA</span>
+                </div>
+                <div class="sum-cell">
+                  <span class="sum-val">${percentage ? percentage + '%' : 'N/A'}</span>
+                  <span class="sum-lbl">Percentage</span>
                 </div>
               </div>
 
-              <div class="section">
-                <div class="section-title">Basic Identification</div>
-                <div class="details-grid">
-                  <div class="field"><span class="label">Name:</span><span class="value">${studentName || '-'}</span></div>
-                  <div class="field"><span class="label">Roll Number:</span><span class="value">${studentRoll || '-'}</span></div>
-                  <div class="field"><span class="label">Course:</span><span class="value">${course}</span></div>
-                  <div class="field"><span class="label">Branch:</span><span class="value">${studentBranch || '-'}</span></div>
-                  <div class="field"><span class="label">Regulation:</span><span class="value">${regulation || '-'}</span></div>
-                  <div class="field"><span class="label">Date of Issue:</span><span class="value">${currentDate}</span></div>
-                </div>
-              </div>
-
-              <div class="section">
-                <div class="section-title">Academic Details</div>
-                <div class="details-grid">
-                  <div class="field"><span class="label">CGPA:</span><span class="value">${finalCGPA !== null ? finalCGPA.toFixed(2) : 'NA'}</span></div>
-                  <div class="field"><span class="label">Percentage:</span><span class="value">${percentage ? percentage + '%' : 'NA'}</span></div>
-                  <div class="field"><span class="label">Class Awarded:</span><span class="value">${classAwarded}</span></div>
-                </div>
-                <table class="table">
-                  <thead>
-                    <tr>
-                      <th>Semester</th>
-                      <th>Total Credits</th>
-                      <th>Credits Earned</th>
-                      <th>SGPA</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${semesterRows || '<tr><td colspan="4" class="center">No semester data available</td></tr>'}
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="section">
-                <div class="section-title">Other Details</div>
-                <div class="details-grid">
-                  ${Object.entries(studentInfo || {}).filter(([key]) => !['name','roll','branch'].includes(key)).map(([key, value]) => `\
-                    <div class="field"><span class="label">${key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}:</span><span class="value">${value || '-'}</span></div>\
-                  `).join('') || '<div class="field"><span class="label">Note:</span><span class="value">No additional fields</span></div>'}
-                </div>
-              </div>
-
+              <!-- Footer -->
               <div class="footer">
-                <div class="date-sec">Date of Issue: ${currentDate}</div>
-                <div class="sign-block">
-                  <div>Authorized Signature</div>
-                  <div class="sign-line"></div>
+                <div class="footer-date">Date of Issue: ${currentDate}</div>
+                <div class="footer-stamp">
+                  <div class="stamp-text">TEMPORARY CMM</div>
                 </div>
               </div>
+
             </div>
           </div>
         </body>
@@ -293,7 +331,6 @@ const CheckGpaPage = () => {
 
     if ('onload' in printWindow) {
       printWindow.onload = printAction;
-      // fallback if onload doesn't fire on mobile
       setTimeout(printAction, 1200);
     } else {
       setTimeout(printAction, 1200);
@@ -361,14 +398,7 @@ const CheckGpaPage = () => {
                 className="btn-secondary print-btn text-sm px-5 py-2.5"
                 disabled={isMobile}
               >
-                📄 Print Report
-              </button>
-              <button
-                className="btn-secondary download-btn text-sm px-5 py-2.5 ml-3"
-                onClick={() => alert('PDF download is available on desktop only')}
-                disabled={isMobile}
-              >
-                📥 Download PDF
+                📄 Print CMM Report
               </button>
             </div>
           ) : (
@@ -466,4 +496,4 @@ const CheckGpaPage = () => {
   );
 };
 
-export default CheckGpaPage; 
+export default CheckGpaPage;

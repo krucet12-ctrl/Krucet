@@ -88,6 +88,7 @@ export default function PaymentManagement() {
     }, [filters]);
 
     const updateStatus = async (id: string, collectionName: string, newStatus: string, extraData?: any) => {
+        console.log('Payment ID:', id, '| Collection:', collectionName, '| Status:', newStatus);
         try {
             const bodyData = { id, collection: collectionName, status: newStatus, ...extraData };
             const response = await fetch('/api/admin/payments/update-status', {
@@ -96,34 +97,38 @@ export default function PaymentManagement() {
                 body: JSON.stringify(bodyData)
             });
 
-            if (response.ok) {
+            const result = await response.json();
+
+            if (response.ok && result.success) {
                 // Optimistic update
                 setPayments(prev => prev.map(p =>
                     p.id === id ? { ...p, status: newStatus as any, ...extraData } : p
                 ));
                 showToast(`Payment ${newStatus} successfully`, 'success');
             } else {
-                showToast(`Failed to update status to ${newStatus}`, 'error');
+                const errMsg = result?.error || `Failed to update status to ${newStatus}`;
+                console.error('Update status error:', errMsg);
+                showToast(errMsg, 'error');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to update status:', error);
-            showToast('An error occurred during status update', 'error');
+            showToast(error?.message || 'An error occurred during status update', 'error');
         }
     };
 
     const handleConfirmReject = async () => {
         if (!rejectingPayment || !rejectionReason) return;
-        
+
         await updateStatus(
-            rejectingPayment.id, 
-            rejectingPayment.collection, 
-            'rejected', 
-            { 
-                rejectionReason, 
-                rejectionComment 
+            rejectingPayment.id,
+            rejectingPayment.collection,
+            'rejected',
+            {
+                rejectionReason,
+                rejectionComment
             }
         );
-        
+
         setRejectModalOpen(false);
         setRejectingPayment(null);
         setRejectionReason('');
@@ -137,127 +142,126 @@ export default function PaymentManagement() {
     };
 
     return (
-    <div className="min-h-screen bg-slate-50 relative pointer-events-auto pb-12">
-      {/* Background Decorative Elements */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-100/30 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
-      <div className="absolute top-40 left-0 w-[500px] h-[500px] bg-blue-100/30 rounded-full blur-3xl pointer-events-none -translate-x-1/3"></div>
+        <div className="min-h-screen bg-slate-50 relative pointer-events-auto pb-12">
+            {/* Background Decorative Elements */}
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-100/30 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
+            <div className="absolute top-40 left-0 w-[500px] h-[500px] bg-blue-100/30 rounded-full blur-3xl pointer-events-none -translate-x-1/3"></div>
 
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md shadow-sm border-b border-indigo-100/60 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between py-4 w-full gap-4">
-            <div className="flex items-center gap-4">
-              <Link href="/admin-dashboard" className="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-2 transition-colors group">
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                <span>Back to Dashboard</span>
-              </Link>
-              <div className="h-5 w-px bg-slate-200 hidden sm:block"></div>
-              <h1 className="text-lg sm:text-xl font-extrabold text-slate-800 tracking-tight">Payment Management</h1>
-            </div>
-            
-            <div className="flex gap-3">
-              <div className="bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Total: {stats.total}</span>
-              </div>
-              <div className="bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Pending: {stats.pending}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+            {/* Header */}
+            <div className="bg-white/80 backdrop-blur-md shadow-sm border-b border-indigo-100/60 sticky top-0 z-20">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between py-4 w-full gap-4">
+                        <div className="flex items-center gap-4">
+                            <Link href="/admin-dashboard" className="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-2 transition-colors group">
+                                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                                <span>Back to Dashboard</span>
+                            </Link>
+                            <div className="h-5 w-px bg-slate-200 hidden sm:block"></div>
+                            <h1 className="text-lg sm:text-xl font-extrabold text-slate-800 tracking-tight">Payment Management</h1>
+                        </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 relative z-10">
+                        <div className="flex gap-3">
+                            <div className="bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
+                                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Total: {stats.total}</span>
+                            </div>
+                            <div className="bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
+                                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Pending: {stats.pending}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 relative z-10">
 
                 {/* Filters */}
                 <div className="premium-card p-5 sm:p-6 mb-8 border-indigo-100 bg-white">
-                  <div className="flex items-center space-x-3 mb-5">
-                    <div className="bg-indigo-50 p-2 rounded-lg">
-                      <span className="text-lg">🔍</span>
-                    </div>
-                    <h2 className="text-base font-extrabold text-slate-800 tracking-tight">Filter Payments</h2>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                    {/* Search */}
-                    <div className="sm:col-span-2 lg:col-span-2">
-                        <label className="label-premium">Search</label>
-                        <input
-                            type="text"
-                            placeholder="Roll No, DU Number, Name..."
-                            className="input-premium focus:ring-2 uppercase"
-                            value={filters.search}
-                            onChange={(e) => setFilters({ ...filters, search: e.target.value.toUpperCase() })}
-                        />
+                    <div className="flex items-center space-x-3 mb-5">
+                        <div className="bg-indigo-50 p-2 rounded-lg">
+                            <span className="text-lg">🔍</span>
+                        </div>
+                        <h2 className="text-base font-extrabold text-slate-800 tracking-tight">Filter Payments</h2>
                     </div>
 
-                    {/* Payment Type */}
-                    <div>
-                        <label className="label-premium">Payment Type</label>
-                        <select
-                            className="input-premium py-2 cursor-pointer"
-                            value={filters.type}
-                            onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-                        >
-                            <option value="all">All Payments</option>
-                            <option value="tuition">Tuition Fee</option>
-                            <option value="exam">Exam Fee (All)</option>
-                            <option value="exam-regular">Exam - Regular</option>
-                            <option value="exam-supply">Exam - Supply</option>
-                            <option value="exam-revaluation">Exam - Revaluation</option>
-                            <option value="exam-special">Exam - Special</option>
-                        </select>
-                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                        {/* Search */}
+                        <div className="sm:col-span-2 lg:col-span-2">
+                            <label className="label-premium">Search</label>
+                            <input
+                                type="text"
+                                placeholder="Roll No, DU Number, Name..."
+                                className="input-premium focus:ring-2 uppercase"
+                                value={filters.search}
+                                onChange={(e) => setFilters({ ...filters, search: e.target.value.toUpperCase() })}
+                            />
+                        </div>
 
-                    {/* Status */}
-                    <div>
-                        <label className="label-premium">Status</label>
-                        <select
-                            className="input-premium py-2 cursor-pointer"
-                            value={filters.status}
-                            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                        >
-                            <option value="all">All Statuses</option>
-                            <option value="pending">Pending</option>
-                            <option value="verified">Verified</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                    </div>
-
-                    {/* Additional Filters based on type */}
-                    {filters.type === 'tuition' && (
+                        {/* Payment Type */}
                         <div>
-                            <label className="label-premium">Year</label>
+                            <label className="label-premium">Payment Type</label>
                             <select
                                 className="input-premium py-2 cursor-pointer"
-                                value={filters.year}
-                                onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+                                value={filters.type}
+                                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
                             >
-                                <option value="">All Years</option>
-                                <option value="1">1st Year</option>
-                                <option value="2">2nd Year</option>
-                                <option value="3">3rd Year</option>
-                                <option value="4">4th Year</option>
+                                <option value="all">All Payments</option>
+                                <option value="tuition">Tuition Fee</option>
+                                <option value="exam">Exam Fee (All)</option>
+                                <option value="exam-regular">Exam - Regular</option>
+                                <option value="exam-supply">Exam - Supply</option>
+                                <option value="exam-revaluation">Exam - Revaluation</option>
                             </select>
                         </div>
-                    )}
 
-                    {filters.type.startsWith('exam') && (
+                        {/* Status */}
                         <div>
-                            <label className="label-premium">Semester</label>
+                            <label className="label-premium">Status</label>
                             <select
                                 className="input-premium py-2 cursor-pointer"
-                                value={filters.semester}
-                                onChange={(e) => setFilters({ ...filters, semester: e.target.value })}
+                                value={filters.status}
+                                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
                             >
-                                <option value="">All Semesters</option>
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <option key={s} value={s}>{s}</option>)}
+                                <option value="all">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="verified">Verified</option>
+                                <option value="rejected">Rejected</option>
                             </select>
                         </div>
-                    )}
-                  </div>
+
+                        {/* Additional Filters based on type */}
+                        {filters.type === 'tuition' && (
+                            <div>
+                                <label className="label-premium">Year</label>
+                                <select
+                                    className="input-premium py-2 cursor-pointer"
+                                    value={filters.year}
+                                    onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+                                >
+                                    <option value="">All Years</option>
+                                    <option value="1">1st Year</option>
+                                    <option value="2">2nd Year</option>
+                                    <option value="3">3rd Year</option>
+                                    <option value="4">4th Year</option>
+                                </select>
+                            </div>
+                        )}
+
+                        {filters.type.startsWith('exam') && (
+                            <div>
+                                <label className="label-premium">Semester</label>
+                                <select
+                                    className="input-premium py-2 cursor-pointer"
+                                    value={filters.semester}
+                                    onChange={(e) => setFilters({ ...filters, semester: e.target.value })}
+                                >
+                                    <option value="">All Semesters</option>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Table */}
@@ -330,10 +334,9 @@ export default function PaymentManagement() {
                                                 </div>
                                             </td>
                                             <td className="px-5 py-4 whitespace-nowrap">
-                                                <span className={`px-2.5 py-1 inline-flex items-center text-[10px] font-extrabold uppercase tracking-widest rounded-lg border ${
-                                                    payment.status === 'verified' ? 'bg-green-50 text-green-700 border-green-200' :
+                                                <span className={`px-2.5 py-1 inline-flex items-center text-[10px] font-extrabold uppercase tracking-widest rounded-lg border ${payment.status === 'verified' ? 'bg-green-50 text-green-700 border-green-200' :
                                                     payment.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' :
-                                                    'bg-amber-50 text-amber-700 border-amber-200'
+                                                        'bg-amber-50 text-amber-700 border-amber-200'
                                                     }`}>
                                                     {payment.status === 'verified' && <span className="mr-1">✓</span>}
                                                     {payment.status === 'rejected' && <span className="mr-1">✗</span>}
@@ -456,15 +459,15 @@ export default function PaymentManagement() {
                         <h3 className="text-xl font-extrabold text-slate-800 tracking-tight flex items-center mb-6">
                             <span className="mr-2 text-2xl">⚠️</span> Reject Payment
                         </h3>
-                        
+
                         <div className="space-y-5">
                             <div>
                                 <label className="label-premium block">Select Rejection Reason *</label>
                                 <div className="space-y-3 mt-2">
                                     <label className="flex items-start space-x-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                                        <input 
-                                            type="radio" 
-                                            name="rejectReason" 
+                                        <input
+                                            type="radio"
+                                            name="rejectReason"
                                             value="The file is not visible / not public"
                                             checked={rejectionReason === "The file is not visible / not public"}
                                             onChange={(e) => setRejectionReason(e.target.value)}
@@ -473,9 +476,9 @@ export default function PaymentManagement() {
                                         <span className="text-sm font-bold text-slate-700">The file is not visible / not public</span>
                                     </label>
                                     <label className="flex items-start space-x-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                                        <input 
-                                            type="radio" 
-                                            name="rejectReason" 
+                                        <input
+                                            type="radio"
+                                            name="rejectReason"
                                             value="DU Number does not match with the file"
                                             checked={rejectionReason === "DU Number does not match with the file"}
                                             onChange={(e) => setRejectionReason(e.target.value)}
@@ -485,11 +488,11 @@ export default function PaymentManagement() {
                                     </label>
                                 </div>
                             </div>
-                            
+
                             <div>
                                 <label className="label-premium block">Additional Comments (optional)</label>
-                                <textarea 
-                                    className="input-premium py-2 mt-1 resize-none" 
+                                <textarea
+                                    className="input-premium py-2 mt-1 resize-none"
                                     rows={3}
                                     placeholder="Enter any extra details explaining the rejection..."
                                     value={rejectionComment}
@@ -499,14 +502,14 @@ export default function PaymentManagement() {
                         </div>
 
                         <div className="flex gap-3 justify-end mt-8 border-t border-slate-100 pt-5">
-                            <button 
-                                onClick={() => setRejectModalOpen(false)} 
+                            <button
+                                onClick={() => setRejectModalOpen(false)}
                                 className="px-5 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors text-sm"
                             >
                                 Cancel
                             </button>
-                            <button 
-                                onClick={handleConfirmReject} 
+                            <button
+                                onClick={handleConfirmReject}
                                 disabled={!rejectionReason}
                                 className="px-5 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-all shadow-sm text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -520,9 +523,8 @@ export default function PaymentManagement() {
             {/* Global Toasts */}
             {toast && (
                 <div className="fixed bottom-6 right-6 z-[100] animate-fade-in-up">
-                    <div className={`px-6 py-3.5 rounded-xl shadow-lg font-bold text-sm tracking-wide flex items-center gap-3 ${
-                        toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
-                    }`}>
+                    <div className={`px-6 py-3.5 rounded-xl shadow-lg font-bold text-sm tracking-wide flex items-center gap-3 ${toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+                        }`}>
                         <span className="text-lg">{toast.type === 'success' ? '✓' : '✗'}</span>
                         {toast.message}
                     </div>
