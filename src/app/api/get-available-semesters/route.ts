@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
     }
 
     const student = studentSnap.data() as StudentData;
-    const regulation = await getRegulationForRollNumber(rollNo);
+    const courseType = (student as any).courseType || 'BTech';
+    const regulation = await getRegulationForRollNumber(rollNo, courseType);
 
     if (!regulation) {
       return NextResponse.json({ error: 'Regulation not found for this student' }, { status: 404 });

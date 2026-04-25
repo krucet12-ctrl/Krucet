@@ -17,6 +17,7 @@ interface PaymentRecord {
     rollNumber: string;
     studentName: string;
     duNumber: string;
+    amount?: number;
     // Tuition fee fields
     yearOfFee?: number | string;
     // Exam fee fields
@@ -72,12 +73,37 @@ function formatDate(value: unknown): string {
     return 'N/A';
 }
 
+/** Calculate paid amount for a student's tuition fee in a specific year */
+async function calculateTuitionPaidAmount(rollNumber: string, yearOfFee: number | string): Promise<number> {
+    try {
+        const q = query(
+            collection(db, 'tuitionFeePayments'),
+            where('rollNumber', '==', rollNumber.toUpperCase()),
+            where('yearOfFee', '==', parseInt(String(yearOfFee))),
+            where('status', '==', 'verified')
+        );
+        const querySnapshot = await getDocs(q);
+        let totalPaid = 0;
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.amount) {
+                totalPaid += data.amount;
+            }
+        });
+        return totalPaid;
+    } catch (error) {
+        console.error('Error calculating paid amount:', error);
+        return 0;
+    }
+}
+
 export default function CheckPaymentStatus() {
     const [rollNumber, setRollNumber] = useState('');
     const [category, setCategory] = useState('tuition');
     const [searchLoading, setSearchLoading] = useState(false);
     const [records, setRecords] = useState<PaymentRecord[]>([]);
     const [searched, setSearched] = useState(false);
+    const [tuitionPaidAmounts, setTuitionPaidAmounts] = useState<{ [key: string]: number }>({});
 
     // Reupload State
     const [activeReuploadId, setActiveReuploadId] = useState<string | null>(null);
@@ -102,6 +128,7 @@ export default function CheckPaymentStatus() {
         setSearched(true);
         setRecords([]);
         setActiveReuploadId(null);
+        setTuitionPaidAmounts({});
 
         try {
             const collectionName = category === 'tuition' ? 'tuitionFeePayments' : 'examFees';
@@ -122,6 +149,19 @@ export default function CheckPaymentStatus() {
                 // Sort by uploadedAt descending
                 docsData.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
                 setRecords(docsData);
+
+                // Calculate paid amounts for tuition fees
+                if (category === 'tuition') {
+                    const paidAmounts: { [key: string]: number } = {};
+                    for (const record of docsData) {
+                        if (record.yearOfFee) {
+                            const key = `${record.rollNumber}_${record.yearOfFee}`;
+                            const paid = await calculateTuitionPaidAmount(record.rollNumber, record.yearOfFee);
+                            paidAmounts[key] = paid;
+                        }
+                    }
+                    setTuitionPaidAmounts(paidAmounts);
+                }
             }
         } catch (error) {
             console.error('Error fetching payment:', error);
@@ -309,6 +349,41 @@ export default function CheckPaymentStatus() {
                                             </div>
 
                                             <div className="border-t border-slate-100" />
+
+                                            {/* Amount Paid */}
+                                            {rec.amount && (
+                                                <div>
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1">Amount Paid</span>
+                                                    <span className="font-bold text-indigo-600 text-sm">₹ {rec.amount.toLocaleString('en-IN')}</span>
+                                                </div>
+                                            )}
+
+                                            <div className="border-t border-slate-100" />
+
+                                            {/* Tuition Fee Summary */}
+                                            {rec.collection === 'tuitionFeePayments' && rec.yearOfFee && (
+                                                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                                                    <p className="text-xs font-extrabold text-indigo-900 uppercase tracking-wider mb-2">Tuition Fee Summary</p>
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-indigo-700 font-semibold">Total Fee:</span>
+                                                            <span className="font-bold text-indigo-900">₹ 40,500</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-indigo-700 font-semibold">Paid Amount:</span>
+                                                            <span className="font-bold text-indigo-900">₹ {(tuitionPaidAmounts[`${rec.rollNumber}_${rec.yearOfFee}`] || 0).toLocaleString('en-IN')}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-indigo-700 font-semibold">Due Amount:</span>
+                                                            <span className="font-bold text-indigo-900">₹ {Math.max(0, 40500 - (tuitionPaidAmounts[`${rec.rollNumber}_${rec.yearOfFee}`] || 0)).toLocaleString('en-IN')}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {rec.collection === 'tuitionFeePayments' && rec.yearOfFee && (
+                                                <div className="border-t border-slate-100" />
+                                            )}
 
                                             {/* Bottom: Status */}
                                             <div>

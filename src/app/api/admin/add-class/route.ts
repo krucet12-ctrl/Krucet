@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     }
 
     if (batchesEncountered.size > 0) {
-      const mapRef = adminDb.doc('yearToRegulation/map');
+      const mapRef = adminDb.doc(`yearToRegulation/${courseType}`);
       const updates: Record<string, string> = {};
       batchesEncountered.forEach(b => {
         updates[b] = regulation;

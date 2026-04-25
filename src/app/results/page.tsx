@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { safeTrim } from "@/lib/utils";
+import ResultsTable from "@/components/ResultsTable";
 
 // Define a type for the student's basic information
 interface StudentInfo {
@@ -11,6 +12,7 @@ interface StudentInfo {
 
 interface ResultType {
   code: string;
+  name?: string;
   credits: number;
   maxMarks?: number;
   extMarks?: number;
@@ -161,48 +163,52 @@ export default function ResultsPage() {
     const hasIntExt = results.some(r => r.intMarks !== undefined || r.extMarks !== undefined);
 
     const tableHeaders = hasIntExt
-      ? `<th class="left" style="width:18%">Sub Code</th>
-         <th style="width:10%">Max</th>
-         <th style="width:10%">Internal</th>
-         <th style="width:10%">External</th>
-         <th style="width:10%">Total</th>
+      ? `<th style="width:12%">Sub Code</th>
+         <th style="width:22%">Subject Name</th>
+         <th style="width:8%">Max</th>
+         <th style="width:8%">Internal</th>
+         <th style="width:8%">External</th>
+         <th style="width:8%">Total</th>
          <th style="width:8%">Grade</th>
          <th style="width:8%">Credits</th>
-         <th style="width:8%">Status</th>`
-      : `<th class="left" style="width:22%">Sub Code</th>
-         <th style="width:12%">Max</th>
-         <th style="width:14%">Total Marks</th>
-         <th style="width:12%">Grade</th>
-         <th style="width:12%">Credits</th>
-         <th style="width:10%">Status</th>`;
+         <th style="width:10%">Status</th>`
+      : `<th style="width:13%">Sub Code</th>
+         <th style="width:25%">Subject Name</th>
+         <th style="width:10%">Max Marks</th>
+         <th style="width:12%">Obtained</th>
+         <th style="width:10%">Credits</th>
+         <th style="width:8%">Grade</th>
+         <th style="width:12%">Status</th>`;
 
     const tableRows = results.map(res => {
-      const statusCell = `<td class="center" style="color:${res.pass ? '#166534' : '#991b1b'};font-weight:700">${res.pass ? 'P' : 'F'}</td>`;
+      const statusColor = res.pass ? '#166534' : '#991b1b';
       const max = (res.maxMarks ?? 100);
       if (hasIntExt) {
         return `<tr>
-          <td class="mono">${res.code}</td>
+          <td class="mono" style="font-weight:600">${res.code}</td>
+          <td style="text-align:left;font-size:10px">${res.name || '—'}</td>
           <td class="center bold">${max}</td>
-          <td class="center">${res.intMarks ?? '-'}</td>
-          <td class="center">${res.extMarks ?? '-'}</td>
+          <td class="center">${res.intMarks ?? '—'}</td>
+          <td class="center">${res.extMarks ?? '—'}</td>
           <td class="center bold">${res.total}</td>
-          <td class="center bold" style="${!res.pass ? 'color:#991b1b' : ''}">${res.grade}</td>
+          <td class="center bold" style="color:${!res.pass ? statusColor : ''}">${res.grade}</td>
           <td class="center">${res.credits}</td>
-          ${statusCell}
+          <td class="center" style="color:${statusColor};font-weight:700">${res.pass ? 'Pass' : 'Fail'}</td>
         </tr>`;
       } else {
         return `<tr>
-          <td class="mono">${res.code}</td>
+          <td class="mono" style="font-weight:600">${res.code}</td>
+          <td style="text-align:left;font-size:10px">${res.name || '—'}</td>
           <td class="center bold">${max}</td>
           <td class="center bold">${res.total}</td>
-          <td class="center bold" style="${!res.pass ? 'color:#991b1b' : ''}">${res.grade}</td>
           <td class="center">${res.credits}</td>
-          ${statusCell}
+          <td class="center bold" style="color:${!res.pass ? statusColor : ''}">${res.grade}</td>
+          <td class="center" style="color:${statusColor};font-weight:700">${res.pass ? 'Pass' : 'Fail'}</td>
         </tr>`;
       }
     }).join('');
 
-    const examMonthYear = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    // examMonthYear removed per user request
 
     const classAwarded = (() => {
       if (!gpa || gpa === 'NA') return 'N/A';
@@ -231,11 +237,14 @@ export default function ResultsPage() {
         .hdr-addr { font-size: 11px; color: #222; margin: 3px 0 0; font-weight: 500; }
         .hdr-title { display: inline-block; margin-top: 9px; border: 1px solid #000; padding: 3px 22px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
 
-        /* Student detail grid — 6 fields */
-        .stu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; border: 1px solid #000; padding: 8px 12px; margin-bottom: 10px; }
-        .field { display: flex; align-items: baseline; margin-bottom: 5px; }
-        .lbl { font-weight: 700; font-size: 10px; text-transform: uppercase; width: 150px; flex-shrink: 0; color: #333; }
-        .val { font-weight: 600; font-size: 11px; border-bottom: 1px dotted #999; flex: 1; padding-left: 6px; min-height: 15px; }
+        /* Student detail grid */
+        .stu-grid { display: grid; grid-template-columns: 56% 44%; gap: 12px 16px; border: 1px solid #000; padding: 12px 16px; margin-bottom: 16px; }
+        .field { display: flex; align-items: flex-start; }
+        .lbl { font-weight: 700; font-size: 10px; text-transform: uppercase; width: 140px; flex-shrink: 0; color: #333; padding-top: 1px; }
+        .val-wrap { flex: 1; text-align: left; }
+        .val { font-weight: 700; font-size: 11px; border-bottom: 1px solid #555; padding-bottom: 1px; display: inline; color: #111; line-height: 1.4; }
+        .val.nowrap { white-space: nowrap; }
+        .val.small-nowrap { white-space: nowrap; font-size: 10px; }
 
         /* Year/Sem banner */
         .sem-banner { text-align: center; font-family: 'EB Garamond', serif; font-size: 13px; font-weight: 700; border: 1px solid #000; padding: 4px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
@@ -249,23 +258,34 @@ export default function ResultsPage() {
         td.bold { font-weight: 700; }
         td.mono { font-family: monospace; font-size: 10px; }
 
-        /* Summary bar */
-        .summary-bar { display: flex; border: 1px solid #000; margin-bottom: 12px; }
-        .sum-cell { flex: 1; padding: 7px 8px; text-align: center; border-right: 1px solid #000; }
-        .sum-cell:last-child { border-right: none; }
-        .sum-val { font-family: 'EB Garamond', serif; font-size: 22px; font-weight: 800; display: block; line-height: 1; }
-        .sum-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #555; letter-spacing: 0.05em; display: block; margin-top: 2px; }
+        /* SGPA Summary Box */
+        .sgpa-box { border: 1px solid #000; padding: 16px 12px; margin-bottom: 10px; text-align: center; width: 100%; }
+        .sgpa-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #333; letter-spacing: 0.05em; margin-bottom: 6px; }
+        .sgpa-value { font-family: 'EB Garamond', serif; font-size: 28px; font-weight: 800; color: #000; line-height: 1; }
 
         /* Footer */
-        .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; border-top: 1px solid #000; padding-top: 8px; }
-        .footer-date { font-size: 10px; font-weight: 600; }
-        .footer-stamp { text-align: center; }
-        .stamp-text { font-family: 'EB Garamond', serif; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border: 1.5px solid #000; padding: 4px 18px; display: inline-block; }
+        .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 12px; border-top: 1px solid #000; padding-top: 10px; }
+        .footer-left { display: flex; flex-direction: column; gap: 4px; }
+        .footer-date { font-size: 11px; font-weight: 700; }
+        .footer-right { max-width: 60%; }
+        .highlight-note {
+          background-color: #fef2f2;
+          border: 1px solid #fca5a5;
+          padding: 8px 12px;
+          font-size: 9px;
+          color: #991b1b;
+          text-align: left;
+          line-height: 1.4;
+          border-radius: 4px;
+        }
+        .highlight-note strong { font-weight: 800; font-size: 10px; }
 
         @media print {
           .cmm-wrap { border: 2.5px solid #000 !important; }
           .cmm-inner { border: 1px solid #000 !important; }
           table { page-break-inside: avoid; }
+          .sgpa-box { page-break-inside: avoid; }
+          .highlight-note { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       </style>
       <div class="cmm-wrap">
@@ -276,17 +296,17 @@ export default function ResultsPage() {
             <img src="${logoUrl}" alt="Logo" class="hdr-logo" />
             <div class="hdr-univ">KRISHNA UNIVERSITY</div>
             <div class="hdr-addr">Machilipatnam – 521004, ANDHRA PRADESH, INDIA</div>
-            <div class="hdr-title">Consolidated Marks Memo / Credit Sheet</div>
+            <div class="hdr-title">MARKS MEMO / CREDIT SHEET</div>
           </div>
 
-          <!-- Student Details (6 fields only) -->
+          <!-- Student Details -->
           <div class="stu-grid">
-            <div class="field"><span class="lbl">Student Name</span><span class="val">${studentInfo.name}</span></div>
-            <div class="field"><span class="lbl">Hall Ticket No</span><span class="val">${rollNo}</span></div>
-            <div class="field"><span class="lbl">College Name</span><span class="val">${COLLEGE_NAME}</span></div>
-            <div class="field"><span class="lbl">Month &amp; Year of Exam</span><span class="val">${examMonthYear}</span></div>
-            <div class="field"><span class="lbl">Year of Admission</span><span class="val">20${rollNo.substring(1, 3) || '__'}</span></div>
-            <div class="field"><span class="lbl">Class Awarded</span><span class="val">${classAwarded}</span></div>
+            <div class="field"><span class="lbl">Student Name</span><div class="val-wrap"><span class="val">${studentInfo.name}</span></div></div>
+            <div class="field"><span class="lbl">Hall Ticket No</span><div class="val-wrap"><span class="val nowrap">${rollNo}</span></div></div>
+            <div class="field"><span class="lbl">College Name</span><div class="val-wrap"><span class="val small-nowrap">${COLLEGE_NAME}</span></div></div>
+            <div class="field"><span class="lbl">Class Awarded</span><div class="val-wrap"><span class="val">${classAwarded}</span></div></div>
+            <div class="field"><span class="lbl">Year of Admission</span><div class="val-wrap"><span class="val">20${rollNo.substring(1, 3) || '__'}</span></div></div>
+            <div></div> <!-- Spacer for exact 2-column layout -->
           </div>
 
           <!-- Year/Sem banner -->
@@ -301,42 +321,26 @@ export default function ResultsPage() {
             </thead>
             <tbody>
               ${tableRows}
-              <tr style="background:#f0f0f0">
-                <td class="bold" colspan="2">Total</td>
-                ${hasIntExt ? `<td class="center bold">—</td><td class="center bold">—</td>` : ''}
-                <td class="center bold">${totalMarks} / ${maxMarks}</td>
-                <td class="center bold">—</td>
-                <td class="center bold">${totalCreditsReg}</td>
-                <td class="center bold" style="color:${overallResult === 'PASS' ? '#166534' : '#991b1b'}">${overallResult}</td>
-              </tr>
             </tbody>
           </table>
 
-          <!-- Summary Bar -->
-          <div class="summary-bar">
-            <div class="sum-cell">
-              <span class="sum-val">${totalCreditsReg}</span>
-              <span class="sum-lbl">Credits Registered</span>
-            </div>
-            <div class="sum-cell">
-              <span class="sum-val">${totalCreditsEarned}</span>
-              <span class="sum-lbl">Credits Earned</span>
-            </div>
-            <div class="sum-cell">
-              <span class="sum-val">${totalMarks}</span>
-              <span class="sum-lbl">Aggregate Marks</span>
-            </div>
-            <div class="sum-cell">
-              <span class="sum-val">${gpa || 'NA'}</span>
-              <span class="sum-lbl">SGPA</span>
-            </div>
+          <!-- SGPA Summary -->
+          <div class="sgpa-box">
+            <div class="sgpa-label">Semester GPA (SGPA)</div>
+            <div class="sgpa-value">${gpa || 'NA'}</div>
           </div>
 
           <!-- Footer -->
           <div class="footer">
-            <div class="footer-date">Date of Issue: ${currentDate}</div>
-            <div class="footer-stamp">
-              <div class="stamp-text">TEMPORARY CMM</div>
+            <div class="footer-left">
+              <div class="footer-date">Date of Issue: ${currentDate}</div>
+            </div>
+            <div class="footer-right">
+              <div class="highlight-note">
+                <strong>Note:</strong><br/>
+                This document is electronically generated and does not require a signature.<br/>
+                It is intended for reference purposes only and is not valid for official use.
+              </div>
             </div>
           </div>
 
@@ -491,45 +495,8 @@ export default function ResultsPage() {
                 </div>
               </div>
 
-              <div ref={tableRef} className="rounded-3xl border border-slate-200 overflow-hidden bg-white shadow-sm ring-1 ring-slate-200/50">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50/80 backdrop-blur-sm border-b border-slate-200">
-                        <th className="px-6 py-5 text-left font-black text-slate-600 text-[11px] uppercase tracking-widest">Sub Code</th>
-                        <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest">Max Marks</th>
-                        <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest">Credits</th>
-                        <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest">Marks</th>
-                        <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest">Grade</th>
-                        <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {results.map((res, idx) => (
-                        <tr key={idx} className="hover:bg-indigo-50/20 transition-all group">
-                          <td className="px-6 py-5 font-mono text-slate-500 font-bold group-hover:text-indigo-600 transition-colors">{res.code}</td>
-                          <td className="px-6 py-5 text-center text-slate-900 font-black">{res.maxMarks ?? 100}</td>
-                          <td className="px-6 py-5 text-center text-slate-900 font-black">{res.credits}</td>
-                          <td className="px-6 py-5 text-center text-slate-900 font-black text-base">{res.total}</td>
-                          <td className="px-6 py-5 text-center">
-                            <span className={`text-base font-black transition-transform inline-block group-hover:scale-110 ${
-                              res.pass ? 'text-slate-800' : 'text-red-600'
-                            }`}>
-                              {res.grade}
-                            </span>
-                          </td>
-                          <td className="px-6 py-5 text-center">
-                            <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider inline-block ${
-                              res.pass ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
-                            }`}>
-                              {res.pass ? '✓ PASS' : '✗ FAIL'}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div ref={tableRef}>
+                <ResultsTable results={results} variant="screen" />
               </div>
             </div>
 

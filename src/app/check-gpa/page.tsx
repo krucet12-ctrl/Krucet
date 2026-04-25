@@ -226,9 +226,16 @@ const CheckGpaPage = () => {
             .sum-val { font-family: 'EB Garamond', serif; font-size: 20px; font-weight: 800; display: block; line-height: 1; }
             .sum-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #555; letter-spacing: 0.05em; display: block; margin-top: 2px; }
 
+            /* CGPA Summary Box */
+            .cgpa-summary { border: 1px solid #000; padding: 16px 12px; margin-bottom: 12px; text-align: center; width: 50%; margin-left: auto; margin-right: auto; }
+            .cgpa-val { font-family: 'EB Garamond', serif; font-size: 28px; font-weight: 800; color: #000; display: block; line-height: 1; margin-bottom: 4px; }
+            .cgpa-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #333; letter-spacing: 0.05em; }
+
             /* Footer */
-            .footer { margin-top: 12px; border-top: 1px solid #000; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+            .footer { margin-top: 12px; border-top: 1px solid #000; padding-top: 8px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .footer-left { display: flex; flex-direction: column; gap: 4px; }
             .footer-date { font-size: 10px; font-weight: 600; }
+            .footer-note { font-size: 10px; font-weight: 400; font-style: italic; color: #333; line-height: 1.3; }
             .footer-stamp { text-align: center; }
             .stamp-text { font-family: 'EB Garamond', serif; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border: 1.5px solid #000; padding: 4px 18px; display: inline-block; }
 
@@ -237,6 +244,8 @@ const CheckGpaPage = () => {
               .cmm-wrap { border: 2.5px solid #000 !important; }
               .cmm-inner { border: 1px solid #000 !important; }
               table { page-break-inside: avoid; }
+              .cgpa-summary { page-break-inside: avoid; }
+              .footer-note { white-space: pre-wrap; }
             }
           </style>
         </head>
@@ -283,31 +292,24 @@ const CheckGpaPage = () => {
                 </tbody>
               </table>
 
-              <!-- Summary Bar -->
-              <div class="summary-bar">
-                <div class="sum-cell">
-                  <span class="sum-val">${totalCreditsAll}</span>
-                  <span class="sum-lbl">Credits Registered</span>
-                </div>
-                <div class="sum-cell">
-                  <span class="sum-val">${totalGradePoints}</span>
-                  <span class="sum-lbl">Aggregate Marks / Points</span>
-                </div>
-                <div class="sum-cell">
-                  <span class="sum-val">${finalCGPA !== null ? finalCGPA.toFixed(2) : 'N/A'}</span>
-                  <span class="sum-lbl">CGPA</span>
-                </div>
-                <div class="sum-cell">
-                  <span class="sum-val">${percentage ? percentage + '%' : 'N/A'}</span>
-                  <span class="sum-lbl">Percentage</span>
-                </div>
+              <!-- CGPA Summary -->
+              <div class="cgpa-summary">
+                <span class="cgpa-val">${finalCGPA !== null ? finalCGPA.toFixed(2) : 'N/A'}</span>
+                <span class="cgpa-lbl">CGPA</span>
               </div>
 
               <!-- Footer -->
               <div class="footer">
-                <div class="footer-date">Date of Issue: ${currentDate}</div>
+                <div class="footer-left">
+                  <div class="footer-date">Date of Issue: ${currentDate}</div>
+                  <div class="footer-note">
+              <strong>Note:</strong><br />
+              This document is electronically generated and does not require a signature.<br />
+              It is intended for reference purposes only and is not valid for official use.
+              </div>
+                </div>
                 <div class="footer-stamp">
-                  <div class="stamp-text">TEMPORARY CMM</div>
+                  <div class="stamp-text">UNAUTHORIZED CMM</div>
                 </div>
               </div>
 

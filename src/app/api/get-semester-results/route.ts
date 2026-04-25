@@ -39,9 +39,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Student not found. Please check your roll number and try again.' }, { status: 404 });
     }
     const student = studentSnap.data() as StudentData;
+    const courseType = (student as any).courseType || 'BTech';
 
     // 2. Determine regulation and branch
-    const regulation = await getRegulationForRollNumber(rollNo);
+    const regulation = await getRegulationForRollNumber(rollNo, courseType);
     if (!regulation) {
       return NextResponse.json({ error: 'Regulation not found for this student' }, { status: 404 });
     }

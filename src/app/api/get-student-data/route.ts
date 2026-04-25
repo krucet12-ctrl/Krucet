@@ -47,9 +47,34 @@ async function buildCurriculumMap(
 
       if (!curriculumCache[cacheKey] || Date.now() - curriculumCache[cacheKey].timestamp > CACHE_TTL) {
         const curRef = doc(db, 'curriculum', regKey, deptKey, semKey);
+        console.log(`[Curriculum] Fetching path: curriculum/${regKey}/${deptKey}/${semKey}`);
+        
         const snap = await getDoc(curRef);
+        let subjectInfo: any[] = [];
+        
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.Subjects && Array.isArray(data.Subjects)) {
+            subjectInfo = data.Subjects;
+          } else if (data.subjects && Array.isArray(data.subjects)) {
+            subjectInfo = data.subjects;
+          } else {
+            // Document might be a map of: subjectCode -> { credits, maxMarks, ... }
+            for (const [key, val] of Object.entries(data)) {
+              if (val && typeof val === 'object') {
+                subjectInfo.push({
+                  ...(val as any),
+                  code: (val as any).code || (val as any).subjectCode || key
+                });
+              }
+            }
+          }
+        }
+        
+        console.log(`[Curriculum] Path curriculum/${regKey}/${deptKey}/${semKey} found ${subjectInfo.length} subjects.`);
+        
         curriculumCache[cacheKey] = {
-          data: snap.exists() ? (snap.data()?.Subjects || []) : [],
+          data: subjectInfo,
           timestamp: Date.now(),
         };
       }
@@ -69,7 +94,7 @@ async function buildCurriculumMap(
           maxMarks: maxMarks ?? 100,
           subjectName: s.subjectName || s.name || s.description || '',
           order: Number.isNaN(orderValue) ? idx + 1 : orderValue,
-          semKey,
+          semKey: semKey.trim().toUpperCase(),
         });
       });
     })
@@ -95,13 +120,35 @@ export async function POST(req: NextRequest) {
 
     const studentData = studentSnap.data();
     const subjectResults = studentData.subjectResults || {};
+    const { batch, branch: parsedBranch, courseType: parsedCourseType } = parseRollNumber(rollNo);
+    // Use the explicitly saved branch from the student document if available, fallback to regex parsed branch
+    let department = (studentData.branch || parsedBranch || '').trim().toUpperCase();
+    const courseType: string = parsedCourseType || 'BTech'; // Override saved courseType with robust detection
 
-    // 3. Resolve regulation & department
-    const { batch, branch: department } = parseRollNumber(rollNo);
-    const regulation = await getRegulationForRollNumber(rollNo);
-    const courseType: string = studentData.courseType || 'BTech';
+    console.log(`[Results Detection] Roll Number: ${rollNo}`);
+    console.log(`[Results Detection] Detected Branch: ${department}`);
+    console.log(`[Results Detection] Detected CourseType: ${courseType}`);
+
+    // Map MTech branch alias back to CSE for curriculum matching
+    if (courseType === 'MTech' && (department === 'MTH' || department === 'CSE_MTH')) {
+      department = 'CSE';
+    }
+
+    const regulation = await getRegulationForRollNumber(rollNo, courseType);
 
     const curriculumMap = await buildCurriculumMap(courseType, regulation || '', department);
+
+    // Build reverse map from existing semesterResults to handle subjects missing from curriculum
+    const semesterResults = studentData.semesterResults || {};
+    const fallbackSemKeyMap = new Map<string, string>();
+    for (const [key, semObj] of Object.entries(semesterResults)) {
+      if (semObj && (semObj as Record<string, any>).subjects) {
+        const normalizedSemKey = key.toUpperCase().replace(/\s+/g, '');
+        for (const subCode of Object.keys((semObj as Record<string, any>).subjects)) {
+          fallbackSemKeyMap.set(subCode.trim().toUpperCase(), normalizedSemKey);
+        }
+      }
+    }
 
     // 5. Map subject results → semester buckets
     const resultsData: Record<string, any> = {};
@@ -110,13 +157,15 @@ export async function POST(req: NextRequest) {
       const normalizedCode = subCode.trim().toUpperCase();
       const cur = curriculumMap.get(normalizedCode);
 
+      console.log(`[Curriculum] Matched Subject [${normalizedCode}]:`, cur || 'NOT FOUND');
+
       if (!cur) {
         // Subject not in curriculum — use defaults
       }
 
-      const semKey  = cur?.semKey      ?? 'Unknown';
-      const credits = cur?.credits     ?? 0;
-      const maxMarks = cur?.maxMarks   ?? 100;
+      const semKey  = cur?.semKey      ?? (fallbackSemKeyMap.get(normalizedCode) || 'SEM1');
+      const credits = cur?.credits     ?? Number(subInfo.credits || 0);
+      const maxMarks = cur?.maxMarks   ?? Number(subInfo.maxMarks || 100);
       const subjectName = cur?.subjectName ?? '';
       const order   = cur?.order       ?? 999;
 

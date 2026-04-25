@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
   convertParsedResultToStudentData, 
-  saveStudentResult,
   saveResultUrl,
   parseRollNumber,
   getRegulationForRollNumber,
-  getCurriculumMaxMarks
+  getCurriculumMaxMarks,
+  computeResultFromMarks,
+  normalizeSubjectCode
 } from '../../../lib/firebaseService';
+import { adminDb } from '../../../lib/firebase-admin';
+import { StudentData } from '../../../lib/types';
 import { parseResultHTML } from '../../../lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -120,14 +123,19 @@ async function performBulkScrape(
 ) {
   const rollStatus: Record<string, 'pending' | 'success' | 'error'> = {};
 
+  let { branch: department, courseType: parsedCourseType } = parseRollNumber(startRoll);
+  
   // Determine curriculum context once
-  const courseType = (resultType || '').split('-')[0] || 'BTech';
+  const courseType = parsedCourseType || meta?.courseType || 'BTech';
   const semMatch = (resultType || '').match(/-Sem(\d+)/i);
-  const semesterKey = semMatch ? `SEM${semMatch[1]}` : 'SEM1';
+  const semesterKey = meta?.semester ? `SEM${meta.semester}` : (semMatch ? `SEM${semMatch[1]}` : 'SEM1');
 
-  const { branch: department } = parseRollNumber(startRoll);
+  // Map MTech branch alias back to CSE for curriculum matching
+  if (courseType === 'MTech' && department === 'MTH') {
+    department = 'CSE';
+  }
 
-  const regulation = await getRegulationForRollNumber(startRoll);
+  const regulation = await getRegulationForRollNumber(startRoll, courseType);
   const subjectMaxMarks = regulation ? await getCurriculumMaxMarks(courseType, regulation, department, semesterKey) : {};
 
   try {
@@ -155,8 +163,15 @@ async function performBulkScrape(
           const html = await response.text();
           const parsedResult = parseResultHTML(html);
           if (parsedResult) {
+            let rollCourseType = 'BTech';
+            try {
+              const parsed = parseRollNumber(rollNo);
+              rollCourseType = parsed.courseType;
+            } catch {
+              // fallback
+            }
             const studentData = convertParsedResultToStudentData(parsedResult, resultType, subjectMaxMarks);
-            await saveStudentResult(studentData, subjectMaxMarks);
+            await saveStudentResultAdmin(studentData, subjectMaxMarks, { ...meta, courseType: rollCourseType } as any);
             rollStatus[rollNo] = 'success';
           } else {
             rollStatus[rollNo] = 'error';
@@ -175,5 +190,205 @@ async function performBulkScrape(
   } catch (error: unknown) {
     console.error('Bulk scrape error:', error);
     throw error;
+  }
+}
+
+async function saveStudentResultAdmin(
+  studentData: StudentData, 
+  subjectMaxMarks: Record<string, { maxMarks: number, credits: number }> = {},
+  meta?: { courseType: string; batch: string; semester: string; scrapeType: string }
+): Promise<void> {
+  if (!adminDb) {
+    throw new Error('Admin DB not initialized');
+  }
+  
+  const normalizedRoll = (studentData.roll || '').trim().toUpperCase();
+  studentData.roll = normalizedRoll;
+  console.log(`[saveStudentResultAdmin] Normalized Roll Number: ${normalizedRoll}`);
+
+  const studentRef = adminDb.collection('students').doc(normalizedRoll);
+  const studentSnap = await studentRef.get();
+
+  if (studentSnap.exists) {
+    const existingData = studentSnap.data() as StudentData;
+    const existingResults = existingData.subjectResults || {};
+    const newResults = studentData.subjectResults;
+
+    const updatedResults = { ...existingResults };
+    const semKey = `sem${meta?.semester || '1'}`;
+    const existingSemesterData: any = existingData.semesterResults?.[semKey] || { subjects: {} };
+    const updatedSemesterSubjects: any = { ...(existingSemesterData.subjects || {}) };
+
+    if (Object.keys(newResults).length > 0) {
+      for (const subCode in newResults) {
+        if (Object.prototype.hasOwnProperty.call(newResults, subCode)) {
+          const newSub = newResults[subCode];
+          const existingSub = existingResults[subCode];
+          const existingSemSub = updatedSemesterSubjects[subCode];
+
+          if (existingSub) {
+            const existingInt = Number(existingSub.intMarks) || 0;
+            const existingExt = Number(existingSub.extMarks) || 0;
+            const newInt = Number(newSub.intMarks) || existingInt;
+            const newExt = Number(newSub.extMarks) || existingExt;
+            const marksAreDifferent = existingInt !== newInt || existingExt !== newExt;
+
+            const isRevaluation = studentData.resultType?.toLowerCase().includes('rvresults');
+            const isSupply = studentData.resultType?.toLowerCase().includes('supplyresults');
+
+            const subjectData = subjectMaxMarks[normalizeSubjectCode(subCode)];
+            const maxMarks = subjectData?.maxMarks || 100;
+            const credits = subjectData?.credits || 0;
+
+            if (isRevaluation) {
+              if (newExt > existingExt) {
+                const computed = computeResultFromMarks(existingInt, newExt, maxMarks);
+                updatedResults[subCode] = {
+                  ...existingSub,
+                  subjectName: newSub.subjectName || existingSub.subjectName || '',
+                  attempts: existingSub.attempts || 1,
+                  credits,
+                  ...computed,
+                };
+                updatedSemesterSubjects[subCode] = { ...(existingSemSub || updatedResults[subCode]), ...computed, attempts: updatedResults[subCode].attempts };
+              }
+            } else if (isSupply) {
+              const computed = computeResultFromMarks(newInt, newExt, maxMarks);
+              updatedResults[subCode] = {
+                ...existingSub,
+                subjectName: newSub.subjectName || existingSub.subjectName || '',
+                attempts: (existingSub.attempts || 1) + 1,
+                credits,
+                ...computed,
+              };
+              updatedSemesterSubjects[subCode] = { ...(existingSemSub || updatedResults[subCode]), ...computed, attempts: updatedResults[subCode].attempts };
+            } else if (marksAreDifferent) {
+              const computed = computeResultFromMarks(newInt, newExt, maxMarks);
+              updatedResults[subCode] = {
+                ...existingSub,
+                subjectName: newSub.subjectName || existingSub.subjectName || '',
+                attempts: (existingSub.attempts || 1) + 1,
+                credits,
+                ...computed,
+              };
+              updatedSemesterSubjects[subCode] = { ...(existingSemSub || updatedResults[subCode]), ...computed, attempts: updatedResults[subCode].attempts };
+            }
+          } else {
+            const subjectData = subjectMaxMarks[normalizeSubjectCode(subCode)];
+            const maxMarks = subjectData?.maxMarks || 100;
+            const credits = subjectData?.credits || 0;
+            const computed = computeResultFromMarks(newSub.intMarks, newSub.extMarks, maxMarks);
+
+            updatedResults[subCode] = {
+              ...newSub,
+              subjectName: newSub.subjectName || '',
+              attempts: 1,
+              credits,
+              ...computed,
+            };
+            updatedSemesterSubjects[subCode] = updatedResults[subCode];
+          }
+        }
+      }
+    }
+
+    console.log("Saving result for:", studentData.roll);
+
+    let semTotalMarks = 0;
+    let semTotalMaxMarks = 0;
+    let totalCredits = 0;
+    let weightedGradePoints = 0;
+
+    for (const subCode in updatedSemesterSubjects) {
+      if (Object.prototype.hasOwnProperty.call(updatedSemesterSubjects, subCode)) {
+        const sub = updatedSemesterSubjects[subCode];
+        semTotalMarks += sub.total || 0;
+        
+        const credits = sub.credits || subjectMaxMarks[normalizeSubjectCode(subCode)]?.credits || 0;
+        totalCredits += credits;
+        const gradePoints = parseFloat(sub.grade) || 0;
+        weightedGradePoints += credits * gradePoints;
+        
+        semTotalMaxMarks += sub.maxMarks || subjectMaxMarks[normalizeSubjectCode(subCode)]?.maxMarks || 100;
+      }
+    }
+    
+    const SGPA = totalCredits > 0 ? weightedGradePoints / totalCredits : 0;
+
+    const newSemesterResult = {
+      ...existingSemesterData, // KEEP previous properties just in case
+      semester: meta?.semester || existingSemesterData.semester || '',
+      scrapeType: meta?.scrapeType || existingSemesterData.scrapeType || '',
+      marks: semTotalMarks,
+      maxMarks: semTotalMaxMarks,
+      SGPA: Number(SGPA.toFixed(2)),
+      subjects: updatedSemesterSubjects,
+      uploadDate: new Date().toISOString()
+    };
+
+    await studentRef.update({
+      name: studentData.name,
+      branch: studentData.branch,
+      college: studentData.college,
+      number: studentData.number,
+      batch: studentData.batch,
+      subjectResults: updatedResults,
+      [`semesterResults.${semKey}`]: newSemesterResult,
+      resultType: studentData.resultType,
+      courseType: meta?.courseType || 'BTech',
+      lastUpdated: new Date().toISOString()
+    });
+
+  } else {
+    // Document doesn't exist, create it.
+    console.warn("Student not found. Creating new document for:", studentData.roll);
+    
+    const semKey = `sem${meta?.semester || '1'}`;
+    let semTotalMarks = 0;
+    let semTotalMaxMarks = 0;
+    let totalCredits = 0;
+    let weightedGradePoints = 0;
+    
+    for (const subCode in studentData.subjectResults) {
+      if (Object.prototype.hasOwnProperty.call(studentData.subjectResults, subCode)) {
+        const sub = studentData.subjectResults[subCode];
+        semTotalMarks += sub.total || 0;
+        
+        const credits = sub.credits || subjectMaxMarks[normalizeSubjectCode(subCode)]?.credits || 0;
+        totalCredits += credits;
+        const gradePoints = parseFloat(sub.grade) || 0;
+        weightedGradePoints += credits * gradePoints;
+        
+        semTotalMaxMarks += sub.maxMarks || subjectMaxMarks[normalizeSubjectCode(subCode)]?.maxMarks || 100;
+      }
+    }
+    
+    const SGPA = totalCredits > 0 ? weightedGradePoints / totalCredits : 0;
+    
+    const newSemesterResult = {
+      semester: meta?.semester || '',
+      scrapeType: meta?.scrapeType || '',
+      marks: semTotalMarks,
+      maxMarks: semTotalMaxMarks,
+      SGPA: Number(SGPA.toFixed(2)),
+      subjects: studentData.subjectResults,
+      uploadDate: new Date().toISOString()
+    };
+
+    await studentRef.set({
+      ...studentData,
+      semesterResults: {
+        [semKey]: newSemesterResult
+      },
+      resultType: studentData.resultType,
+      lastUpdated: new Date().toISOString()
+    });
+  }
+
+  // Invalidate precomputed CGPA
+  try {
+    await adminDb.collection('cgpa').doc(studentData.roll).delete();
+  } catch {
+    // ignore
   }
 }

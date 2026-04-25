@@ -10,6 +10,7 @@ export default function ExamFeePage() {
     const [rollNumber, setRollNumber] = useState('');
     const [semester, setSemester] = useState('');
     const [feeType, setFeeType] = useState('');
+    const [amount, setAmount] = useState('');
     const [duNumber, setDuNumber] = useState('');
     const [paymentProofLink, setPaymentProofLink] = useState('');
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -35,6 +36,12 @@ export default function ExamFeePage() {
 
         if (!feeType) {
             newErrors.feeType = 'Type of Fee is required';
+        }
+
+        if (!amount) {
+            newErrors.amount = 'Payment amount is required';
+        } else if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+            newErrors.amount = 'Please enter a valid amount greater than 0';
         }
 
         if (!safeTrim(duNumber)) {
@@ -69,6 +76,7 @@ export default function ExamFeePage() {
                 rollNumber: rollNumber.toUpperCase(),
                 semester,
                 feeType,
+                amount: parseFloat(amount),
                 duNumber,
                 paymentProofLink
             };
@@ -87,6 +95,7 @@ export default function ExamFeePage() {
                 setRollNumber('');
                 setSemester('');
                 setFeeType('');
+                setAmount('');
                 setDuNumber('');
                 setPaymentProofLink('');
             } else {
@@ -280,6 +289,34 @@ export default function ExamFeePage() {
                                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                     </svg>
                                     {errors.feeType}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Payment Amount */}
+                        <div>
+                            <label htmlFor="amount" className="label-premium">
+                                Payment Amount *
+                            </label>
+                            <input
+                                type="text"
+                                id="amount"
+                                autoComplete="off"
+                                value={amount}
+                                onChange={(e) => {
+                                    setAmount(e.target.value.replace(/[^0-9]/g, ''));
+                                    if (errors.amount) setErrors({ ...errors, amount: '' });
+                                }}
+                                placeholder="Enter payment amount"
+                                className={`input-premium focus:!ring-indigo-500 focus:!border-indigo-500 ${errors.amount ? '!border-red-300 !bg-red-50' : ''
+                                    }`}
+                            />
+                            {errors.amount && (
+                                <p className="mt-1 text-xs text-red-600 flex items-center">
+                                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    {errors.amount}
                                 </p>
                             )}
                         </div>

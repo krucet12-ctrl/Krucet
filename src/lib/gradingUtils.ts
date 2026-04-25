@@ -59,10 +59,18 @@ export const getGradePoint = (totalMarks: number, maxMarks: number = 100): numbe
 };
 
 /**
- * Determines the letter grade based on percentage (obtainedMarks / maxMarks * 100).
- * Works correctly for any maxMarks value (50, 75, 100, 200, …).
- *
- * Grade scale (percentage-based):
+ * Determines the letter grade based on marks obtained.
+ * 
+ * For 50-mark subjects, uses absolute mark ranges:
+ *   45-50 → S
+ *   40-44 → A
+ *   35-39 → B
+ *   30-34 → C
+ *   25-29 → D
+ *   20-24 → E
+ *   0-19  → F (Fail)
+ * 
+ * For other maxMarks values, uses percentage-based grading:
  *   ≥ 90% → S
  *   ≥ 80% → A
  *   ≥ 70% → B
@@ -78,6 +86,19 @@ export const getGradePoint = (totalMarks: number, maxMarks: number = 100): numbe
  */
 export const getGrade = (totalMarks: number, passed: boolean, maxMarks: number = 100): string => {
   if (!passed) return 'F';
+
+  // Special grading for 50-mark subjects
+  if (maxMarks === 50) {
+    if (totalMarks >= 45) return 'S';
+    if (totalMarks >= 40) return 'A';
+    if (totalMarks >= 35) return 'B';
+    if (totalMarks >= 30) return 'C';
+    if (totalMarks >= 25) return 'D';
+    if (totalMarks >= 20) return 'E';
+    return 'F';
+  }
+
+  // Percentage-based grading for all other maxMarks values
   const pct = getSubjectPercentage(totalMarks, maxMarks);
   if (pct >= 90) return 'S';
   if (pct >= 80) return 'A';

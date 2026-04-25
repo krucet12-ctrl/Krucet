@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Edit3, Save, Search, RefreshCw, ShieldCheck } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { sanitizeDatesInObject } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -456,8 +456,8 @@ function CheckClassTab() {
                 setLateralExists(latExists);
             }
 
-            // 3. Read regulations from yearToRegulation/map
-            const mapSnap = await getDoc(doc(db, 'yearToRegulation', 'map'));
+            // 3. Read regulations from yearToRegulation/{courseType}
+            const mapSnap = await getDoc(doc(db, 'yearToRegulation', courseType));
             const mapData = mapSnap.exists() ? mapSnap.data() : {};
             const regulation = mapData[batchKey] || '';
             
@@ -491,7 +491,7 @@ function CheckClassTab() {
                 updates[latBatchKey] = selectedRegulation;
             }
             
-            await updateDoc(doc(db, 'yearToRegulation', 'map'), updates);
+            await setDoc(doc(db, 'yearToRegulation', courseType), updates, { merge: true });
             setCurrentRegulation(selectedRegulation);
             setUpdateStatus('success');
             setUpdateMsg('Regulation updated successfully');

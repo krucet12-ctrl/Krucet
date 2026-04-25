@@ -109,11 +109,11 @@ export const checkFirestoreConnection = async (): Promise<boolean> => {
   }
 };
 
-const normalizeSubjectCode = (code: string): string => {
+export const normalizeSubjectCode = (code: string): string => {
   return (code || '').toString().trim().toUpperCase();
 };
 
-const computeResultFromMarks = (intMarksRaw: any, extMarksRaw: any, maxMarks: number) => {
+export const computeResultFromMarks = (intMarksRaw: any, extMarksRaw: any, maxMarks: number) => {
   const intMarks = Number(intMarksRaw) || 0;
   const extMarks = Number(extMarksRaw) || 0;
   const total = intMarks + extMarks;
@@ -137,37 +137,52 @@ export const getCurriculumMaxMarks = async (
   regulation: string,
   department: string,
   semester: string
-): Promise<Record<string, number>> => {
-  const result: Record<string, number> = {};
+): Promise<Record<string, { maxMarks: number, credits: number }>> => {
+  const result: Record<string, { maxMarks: number, credits: number }> = {};
   try {
     if (!courseType || !regulation || !department || !semester) {
       return result;
     }
 
-    // Try multiple path variations to find the curriculum
-    const pathVariations = [
-      { collection: 'curriculum', doc: `${courseType}_${regulation.toUpperCase()}`, subcollection: department.toUpperCase(), subdoc: semester },
-      { collection: 'curriculum', doc: regulation.toUpperCase(), subcollection: department.toUpperCase(), subdoc: semester },
-      { collection: 'curriculum', doc: `${courseType}_${regulation.toUpperCase()}`, subcollection: department.toUpperCase(), subdoc: `Sem${semester.replace(/SEM/i, '')}` },
-    ];
+    const docName = `${courseType}_${regulation.toUpperCase()}`;
+    const branchName = department.toUpperCase();
+    const semName = semester.toUpperCase();
+    const builtPath = `curriculum/${docName}/${branchName}/${semName}`;
+    
+    console.log(`[getCurriculumMaxMarks] CourseType: ${courseType}, Regulation: ${regulation}`);
+    console.log(`[getCurriculumMaxMarks] Built curriculum path: ${builtPath}`);
 
-    for (const path of pathVariations) {
-      const curDoc = doc(db, path.collection, path.doc, path.subcollection, path.subdoc);
-      const curSnap = await getDoc(curDoc);
-      if (curSnap.exists()) {
-        let subjects = curSnap.data().Subjects || curSnap.data().subjects || [];
-        if (!Array.isArray(subjects)) {
-          subjects = Object.values(curSnap.data() || {});
-        }
-        for (const subject of subjects) {
-          if (!subject) continue;
-          const code = normalizeSubjectCode(subject.code || subject.subjectCode || subject.subject_code);
-          if (!code) continue;
-          const maxMarks = Number(subject.maxMarks || subject.max_marks || subject.maxmarks || 100);
-          result[code] = Number.isNaN(maxMarks) ? 100 : maxMarks;
-        }
-        break;
+    const curDoc = doc(db, 'curriculum', docName, branchName, semName);
+    const curSnap = await getDoc(curDoc);
+
+    if (curSnap.exists()) {
+      let subjects = curSnap.data().Subjects || curSnap.data().subjects || [];
+      if (!Array.isArray(subjects)) {
+        subjects = Object.values(curSnap.data() || {});
       }
+      
+      for (const subject of subjects) {
+        if (!subject) continue;
+        const code = normalizeSubjectCode(subject.code || subject.subjectCode || subject.subject_code);
+        if (!code) continue;
+        
+        // Exact matching logic as requested by user
+        const matchedSubject = subjects.find((s: any) => 
+          normalizeSubjectCode(s.code || s.subjectCode || s.subject_code) === code
+        );
+
+        const targetData = matchedSubject || subject;
+        const maxMarks = Number(targetData.maxMarks || targetData.max_marks || targetData.maxmarks || 100);
+        const credits = Number(targetData.credit || targetData.credits || 0);
+
+        result[code] = {
+          maxMarks: Number.isNaN(maxMarks) ? 100 : maxMarks,
+          credits: Number.isNaN(credits) ? 0 : credits
+        };
+        console.log(`[getCurriculumMaxMarks] Subject code lookup: ${code} - Found maxMarks: ${result[code].maxMarks}, credits: ${result[code].credits}`);
+      }
+    } else {
+      console.log(`[getCurriculumMaxMarks] No document found at built curriculum path: ${builtPath}`);
     }
   } catch (error) {
     console.error('Error getting curriculum max marks:', error);
@@ -178,96 +193,102 @@ export const getCurriculumMaxMarks = async (
 
 // Student Operations
 
-export const saveStudentResult = async (studentData: StudentData, subjectMaxMarks: Record<string, number> = {}): Promise<void> => {
+export const saveStudentResult = async (
+  studentData: StudentData,
+  subjectMaxMarks: Record<string, { maxMarks: number, credits: number }> = {},
+  meta?: { courseType: string; batch: string; semester: string; scrapeType: string }
+): Promise<void> => {
   return retryOperation(async () => {
     const studentRef = doc(db, 'students', studentData.roll);
     const studentSnap = await getDoc(studentRef);
 
     if (studentSnap.exists()) {
       const existingData = studentSnap.data() as StudentData;
-      const existingResults = existingData.subjectResults || {};
+      const semesterKey = `semesterResults.sem${meta?.semester}`;
+      const semesterData = existingData.semesterResults?.[semesterKey] || { subjects: {} };
+
+      const updatedSubjects = { ...semesterData.subjects };
       const newResults = studentData.subjectResults;
 
-      const updatedResults = { ...existingResults };
+      for (const subCode in newResults) {
+        if (Object.prototype.hasOwnProperty.call(newResults, subCode)) {
+          const newSub = newResults[subCode];
+          const existingSub = updatedSubjects[subCode];
 
-      if (Object.keys(newResults).length > 0) {
-        for (const subCode in newResults) {
-          if (Object.prototype.hasOwnProperty.call(newResults, subCode)) {
-            const newSub = newResults[subCode];
-            const existingSub = existingResults[subCode];
+          const subjectData = subjectMaxMarks[normalizeSubjectCode(subCode)] || { maxMarks: 100, credits: 0 };
+          const maxMarks = subjectData.maxMarks;
+          const credits = subjectData.credits;
 
-            if (existingSub) {
-              // Subject exists - check if marks are different
-              const existingInt = Number(existingSub.intMarks) || 0;
-              const existingExt = Number(existingSub.extMarks) || 0;
-              const newInt = Number(newSub.intMarks) || existingInt;
-              const newExt = Number(newSub.extMarks) || existingExt;
-              const marksAreDifferent = existingInt !== newInt || existingExt !== newExt;
+          const computed = computeResultFromMarks(newSub.intMarks, newSub.extMarks, maxMarks);
 
-              const isRevaluation = studentData.resultType?.toLowerCase().includes('rvresults');
-              const isSupply = studentData.resultType?.toLowerCase().includes('supplyresults');
-
-              const maxMarks = subjectMaxMarks[normalizeSubjectCode(subCode)] || 100;
-
-              if (isRevaluation) {
-                if (newExt > existingExt) {
-                  const computed = computeResultFromMarks(existingInt, newExt, maxMarks);
-                  updatedResults[subCode] = {
-                    ...existingSub,
-                    subjectName: newSub.subjectName || existingSub.subjectName || '',
-                    attempts: existingSub.attempts || 1,
-                    ...computed,
-                  };
-                }
-              } else if (isSupply) {
-                const computed = computeResultFromMarks(newInt, newExt, maxMarks);
-                updatedResults[subCode] = {
-                  ...existingSub,
-                  subjectName: newSub.subjectName || existingSub.subjectName || '',
-                  attempts: (existingSub.attempts || 1) + 1,
-                  ...computed,
-                };
-              } else if (marksAreDifferent) {
-                const computed = computeResultFromMarks(newInt, newExt, maxMarks);
-                updatedResults[subCode] = {
-                  ...existingSub,
-                  subjectName: newSub.subjectName || existingSub.subjectName || '',
-                  attempts: (existingSub.attempts || 1) + 1,
-                  ...computed,
-                };
-              }
-              // If marks are the same and not reval/supply, keep existing record.
-            } else {
-              // New subject, add it with 1 attempt and computed values.
-              const maxMarks = subjectMaxMarks[normalizeSubjectCode(subCode)] || 100;
-              const computed = computeResultFromMarks(newSub.intMarks, newSub.extMarks, maxMarks);
-
-              updatedResults[subCode] = {
-                ...newSub,
-                subjectName: newSub.subjectName || '',
-                attempts: 1,
-                ...computed,
-              };
-            }
+          if (existingSub) {
+            updatedSubjects[subCode] = {
+              ...existingSub,
+              ...computed,
+              subjectName: newSub.subjectName || existingSub.subjectName,
+              attempts: (existingSub.attempts || 1) + 1,
+            };
+          } else {
+            updatedSubjects[subCode] = {
+              ...newSub,
+              ...computed,
+              attempts: 1,
+            };
           }
         }
       }
 
-      await updateDoc(studentRef, {
-        name: studentData.name,
-        branch: studentData.branch,
-        college: studentData.college,
-        number: studentData.number,
-        batch: studentData.batch,
-        subjectResults: updatedResults,
-        resultType: studentData.resultType,
-        lastUpdated: new Date().toISOString()
-      });
+      // Recalculate SGPA
+      let totalCredits = 0;
+      let weightedGradePoints = 0;
+      for (const subCode in updatedSubjects) {
+        const subject = updatedSubjects[subCode];
+        const credits = subjectMaxMarks[normalizeSubjectCode(subCode)]?.credits || 0;
+        totalCredits += credits;
+        const gradePoints = parseFloat(subject.grade) || 0; // Ensure grade is a number
+        weightedGradePoints += credits * gradePoints;
+      }
+      const SGPA = totalCredits > 0 ? weightedGradePoints / totalCredits : 0;
 
+      // Update Firestore
+      await updateDoc(studentRef, {
+        [`semesterResults.sem${meta?.semester}`]: {
+          ...semesterData,
+          subjects: updatedSubjects,
+          SGPA,
+          lastUpdated: new Date().toISOString(),
+        },
+      });
     } else {
       // Document doesn't exist, create it.
+      console.warn("Student not found");
+      
+      let totalMarks = 0;
+      let totalMaxMarks = 0;
+      for (const subCode in studentData.subjectResults) {
+        if (Object.prototype.hasOwnProperty.call(studentData.subjectResults, subCode)) {
+          const sub = studentData.subjectResults[subCode];
+          totalMarks += sub.total || 0;
+          totalMaxMarks += sub.maxMarks || subjectMaxMarks[normalizeSubjectCode(subCode)]?.maxMarks || 100;
+        }
+      }
+      
+      const resultKey = studentData.resultType || 'Unknown_Result';
+      const newSemesterResult = {
+        semester: meta?.semester || '',
+        scrapeType: meta?.scrapeType || '',
+        marks: totalMarks,
+        maxMarks: totalMaxMarks,
+        SGPA: 0,
+        subjects: studentData.subjectResults,
+        uploadDate: new Date().toISOString()
+      };
+
       await setDoc(studentRef, {
         ...studentData,
+        semesterResults: {
+          [resultKey]: newSemesterResult
+        },
         resultType: studentData.resultType,
         lastUpdated: new Date().toISOString()
       });
@@ -368,7 +389,7 @@ export const getSemesterSubjects = async (
 
 
 // Utility Functions
-export const parseRollNumber = (rollNo: string): { batch: string; branch: string; college: string; number: string } => {
+export const parseRollNumber = (rollNo: string): { batch: string; branch: string; college: string; number: string; courseType: string } => {
   // Example: Y22CSE279063 -> batch: Y22, branch: CSE, college: 279, number: 063
   // Updated to handle variable-length numeric portion
   const match = rollNo.match(/^([YL]\d{2})([A-Z]{2,6})(\d+)$/i);
@@ -382,11 +403,23 @@ export const parseRollNumber = (rollNo: string): { batch: string; branch: string
   const college = numericPart.length >= 6 ? numericPart.substring(0, 3) : '';
   const number = numericPart.length >= 6 ? numericPart.substring(3) : numericPart;
 
+  const batch = match[1].toUpperCase();
+  const branch = match[2].toUpperCase();
+  const rollUpper = rollNo.toUpperCase();
+
+  let courseType = 'BTech';
+  if (rollUpper.includes('MTH')) {
+    courseType = 'MTech';
+  } else if (rollUpper.includes('CSE') || rollUpper.includes('ECE') || rollUpper.includes('AIML')) {
+    courseType = 'BTech';
+  }
+
   return {
-    batch: match[1].toUpperCase(),
-    branch: match[2].toUpperCase(),
-    college: college,
-    number: number
+    batch,
+    branch,
+    college,
+    number,
+    courseType
   };
 };
 
@@ -395,7 +428,7 @@ export const parseRollNumber = (rollNo: string): { batch: string; branch: string
 export const convertParsedResultToStudentData = (
   parsedResult: ParsedResult,
   resultType?: string,
-  subjectMaxMarks: Record<string, number> = {}
+  subjectMaxMarks: Record<string, { maxMarks: number, credits: number }> = {}
 ): Omit<StudentData, 'subjectResults'> & { subjectResults: Record<string, SubjectResult> } => {
   const { batch, branch, college, number } = parseRollNumber(parsedResult.studentInfo.rollNo);
 
@@ -405,9 +438,12 @@ export const convertParsedResultToStudentData = (
     const code = normalizeSubjectCode(subject.subCode);
     if (!code) return;
 
-    const maxMarks = subjectMaxMarks[code] || 100;
-    if (!subjectMaxMarks[code]) {
-      console.warn(`Curriculum max marks missing for subject ${code}. Assuming 100.`);
+    const subjectData = subjectMaxMarks[normalizeSubjectCode(code)] || { maxMarks: 100, credits: 0 };
+    const maxMarks = subjectData.maxMarks;
+    const credits = subjectData.credits;
+
+    if (!subjectData) {
+      console.warn(`Curriculum data missing for subject ${code}. Assuming maxMarks 100.`);
     }
 
     const computed = computeResultFromMarks(subject.intMarks, subject.extMarks, maxMarks);
@@ -415,7 +451,8 @@ export const convertParsedResultToStudentData = (
     subjectResults[code] = {
       subjectName: subject.subjectName || '',
       ...computed,
-      attempts: 1 // Initialize attempts to 1 for a new scrape
+      attempts: 1, // Initialize attempts to 1 for a new scrape
+      credits
     };
   });
 
@@ -457,8 +494,8 @@ export async function getSubjectInfoFromCurriculum(regulation: string, branch: s
 // Year-to-Regulation Mapping Utilities
 
 // Get the year-to-regulation mapping document
-export async function getYearToRegulationMap(): Promise<YearToRegulationMap | null> {
-  const docRef = doc(db, 'yearToRegulation', 'map');
+export async function getYearToRegulationMap(courseType: string = 'BTech'): Promise<YearToRegulationMap | null> {
+  const docRef = doc(db, 'yearToRegulation', courseType);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
     return docSnap.data() as YearToRegulationMap;
@@ -467,9 +504,9 @@ export async function getYearToRegulationMap(): Promise<YearToRegulationMap | nu
 }
 
 // Get regulation for a roll number using year-to-regulation mapping
-export async function getRegulationForRollNumber(rollNo: string): Promise<string | null> {
+export async function getRegulationForRollNumber(rollNo: string, courseType: string = 'BTech'): Promise<string | null> {
   const { batch } = parseRollNumber(rollNo);
-  const yearToRegMap = await getYearToRegulationMap();
+  const yearToRegMap = await getYearToRegulationMap(courseType);
 
   if (yearToRegMap && yearToRegMap[batch]) {
     return yearToRegMap[batch];

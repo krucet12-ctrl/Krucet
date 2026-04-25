@@ -9,6 +9,7 @@ export interface SubjectResult {
   grade: string;
   status?: 'PASS' | 'FAIL';
   attempts: number;
+  credits?: number;
 }
 
 export interface StudentData {
@@ -22,6 +23,7 @@ export interface StudentData {
   name?: string;
   semesters?: Record<string, { subjects: Record<string, unknown> }>;
   resultType?: string;
+  semesterResults?: Record<string, SemesterResult>; // Added semesterResults
 }
 
 // Subject Metadata Types
@@ -63,4 +65,10 @@ export interface ParsedResult {
 // Year to Regulation Mapping Type
 export interface YearToRegulationMap {
   [year: string]: string;
-} 
+}
+
+export interface SemesterResult {
+  subjects: Record<string, SubjectResult>;
+  SGPA: number;
+  lastUpdated: string;
+}

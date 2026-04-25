@@ -98,8 +98,8 @@ export async function POST(req: NextRequest) {
 
     // 2. Resolve regulation & department
     const { batch, branch: department } = parseRollNumber(rollNo);
-    const regulation  = await getRegulationForRollNumber(rollNo);
     const courseType  = (student as any).courseType || 'BTech';
+    const regulation  = await getRegulationForRollNumber(rollNo, courseType);
 
     const curriculumMap = await buildCurriculumMap(courseType, regulation || '', department);
 

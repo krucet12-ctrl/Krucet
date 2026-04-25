@@ -125,7 +125,12 @@ export default function ManageCurriculumPage() {
 
   const handleSubjectChange = (index: number, field: keyof SubjectEntry, value: string | number) => {
     const newSubjects = [...subjects];
-    newSubjects[index] = { ...newSubjects[index], [field]: value };
+    if (field === 'credit') {
+      const num = typeof value === 'string' ? parseFloat(value) : value;
+      newSubjects[index] = { ...newSubjects[index], credit: isNaN(num) ? 0 : num };
+    } else {
+      newSubjects[index] = { ...newSubjects[index], [field]: value };
+    }
     setSubjects(newSubjects);
   };
 
@@ -301,10 +306,11 @@ export default function ManageCurriculumPage() {
                           <input
                             type="number"
                             value={sub.credit}
-                            onChange={e => handleSubjectChange(idx, 'credit', parseFloat(e.target.value))}
-                            className="input-premium py-1.5 px-3 text-sm text-center cursor-text bg-white group-hover/row:bg-slate-50"
                             min={0}
                             step={0.5}
+                            onChange={e => handleSubjectChange(idx, 'credit', e.target.value)}
+                            onWheel={e => e.currentTarget.blur()}
+                            className="input-premium py-1.5 px-3 text-sm text-center cursor-text bg-white group-hover/row:bg-slate-50"
                           />
                         </td>
                         <td className="px-5 py-3">

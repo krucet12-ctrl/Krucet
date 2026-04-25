@@ -7,9 +7,9 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
     try {
         const data = await req.json();
-        const { studentName, rollNumber, yearOfFee, duNumber, paymentProofLink } = data;
+        const { studentName, rollNumber, yearOfFee, amount, duNumber, paymentProofLink } = data;
 
-        if (!studentName || !rollNumber || !yearOfFee || !duNumber || !paymentProofLink) {
+        if (!studentName || !rollNumber || !yearOfFee || !amount || !duNumber || !paymentProofLink) {
             return NextResponse.json({ success: false, error: 'All fields are required' }, { status: 400 });
         }
 
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
             studentName,
             rollNumber: rollNumber.toUpperCase(),
             yearOfFee: parseInt(yearOfFee),
+            amount: parseFloat(amount),
             duNumber,
             paymentProofURL: paymentProofLink,
             paymentProofLink,
