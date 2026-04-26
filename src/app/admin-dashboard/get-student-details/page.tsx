@@ -21,10 +21,6 @@ const getLateralPrefix = (batch: string) => {
   return `L${parseInt(match[1]) + 1}`;
 };
 
-const DEPT_OPTIONS = {
-  BTech: ["CSE", "ECE", "AIML"],
-  MTech: ["MTH"],
-};
 
 // Print styles as a constant
 const PRINT_STYLES = `
@@ -254,11 +250,7 @@ const getGroupedFields = (studentObj: Record<string, unknown>) => {
 };
 
 export default function GetStudentDetailsPage() {
-  const [courseType, setCourseType] = useState<"BTech" | "MTech">("BTech");
-  const [batchNumber, setBatchNumber] = useState("");
-  const [branch, setBranch] = useState("");
   const [rollNo, setRollNo] = useState("");
-  const batch = batchNumber ? `Y${batchNumber}` : "";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [student, setStudent] = useState<Record<string, unknown> | null>(null);
@@ -278,9 +270,30 @@ export default function GetStudentDetailsPage() {
     setStudent(null);
     setLoading(true);
     try {
-      const batchUp = safeTrim(batch).toUpperCase();
-      const branchUp = safeTrim(branch).toUpperCase();
       const rollUp = safeTrim(rollNo).toUpperCase();
+      let courseType = "BTech";
+      let branchUp = "";
+      let batchUp = "";
+
+      const match = rollUp.match(/^([YL]\d{2})([A-Z]{2,6})(\d+)$/i);
+      if (match) {
+        batchUp = match[1];
+        const deptStr = match[2];
+        if (deptStr.includes("CSE")) branchUp = "CSE";
+        else if (deptStr.includes("ECE")) branchUp = "ECE";
+        else if (deptStr.includes("AIM") || deptStr.includes("AIML")) branchUp = "AIML";
+        else if (deptStr.includes("MTH")) {
+          branchUp = "MTH";
+          courseType = "MTech";
+        } else {
+          branchUp = deptStr;
+        }
+      } else {
+         setError("Invalid Roll Number format. Expected format like Y22CSE279063.");
+         setLoading(false);
+         return;
+      }
+
       const lateralBatch = getLateralPrefix(batchUp);
 
       // Try new path first: classes/{courseType}/batches/{batch}/departments/{branch}/students/{roll}
@@ -317,7 +330,7 @@ export default function GetStudentDetailsPage() {
     const logoUrl = window.location.origin + UNIVERSITY_LOGO;
     const studentRoll = String(student["Reg.No"] || student["roll"] || rollNo);
     const studentName = String(student["Name of the Student"] || student["name"] || student["Name"] || "N/A");
-    const studentBranch = String(student["Branch"] || student["Department"] || student["branch"] || branch || "N/A");
+    const studentBranch = String(student["Branch"] || student["Department"] || student["branch"] || "N/A");
     const regulation = String(student["Regulation"] || student["regulation"] || "N/A");
     const currentDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -327,8 +340,6 @@ export default function GetStudentDetailsPage() {
       { label: "Name", value: studentName },
       { label: "Branch", value: studentBranch },
       { label: "Regulation", value: regulation },
-      { label: "Batch", value: batch.toUpperCase() },
-      { label: "Course", value: courseType === "BTech" ? "B.Tech" : "M.Tech" },
     ];
 
     // Get all other fields not in the key fields
@@ -483,65 +494,12 @@ export default function GetStudentDetailsPage() {
             </div>
 
             <form onSubmit={handleFetch} className="space-y-6">
-              {/* Course Type Toggle */}
-              <div className="space-y-2">
-                <label className="label-premium">Course Type</label>
-                <div className="flex rounded-xl overflow-hidden border border-slate-200 shadow-sm max-w-xs">
-                  {(["BTech", "MTech"] as const).map((ct) => (
-                    <button
-                      key={ct}
-                      type="button"
-                      onClick={() => {
-                        setCourseType(ct);
-                        setBranch(""); // Reset branch on course type change
-                      }}
-                      className={`flex-1 py-2.5 text-sm font-extrabold transition-all ${courseType === ct
-                        ? "bg-indigo-600 text-white shadow-inner"
-                        : "bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
-                        }`}
-                    >
-                      {ct === "BTech" ? "B.Tech" : "M.Tech"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <label className="label-premium">Batch</label>
-                  <div className="flex items-center border rounded-xl overflow-hidden">
-                    <span className="bg-slate-100 px-4 py-2 font-bold text-slate-600">Y</span>
-                    <input
-                      type="text"
-                      placeholder="22, 23, 24..."
-                      value={batchNumber}
-                      onChange={e => setBatchNumber(e.target.value.replace(/[^0-9]/g, ""))}
-                      className="flex-1 px-4 py-2 outline-none uppercase font-mono"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="label-premium">Department</label>
-                  <select
-                    value={branch}
-                    onChange={e => setBranch(e.target.value)}
-                    className="input-premium font-bold bg-white"
-                    required
-                  >
-                    <option value="" disabled>Select Department</option>
-                    {DEPT_OPTIONS[courseType].map((dept: string) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-2">
                   <label className="label-premium">Roll Number</label>
                   <input
                     type="text"
-                    placeholder="Y22CSE279001"
+                    placeholder="Enter Roll Number (e.g. Y22CSE279063)"
                     value={rollNo}
                     onChange={e => setRollNo(e.target.value.toUpperCase())}
                     className="input-premium uppercase font-mono"
@@ -553,7 +511,7 @@ export default function GetStudentDetailsPage() {
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={loading || !safeTrim(rollNo) || !safeTrim(batch) || !safeTrim(branch)}
+                  disabled={loading || !safeTrim(rollNo)}
                   className="btn-primary w-full px-8 py-3 flex justify-center items-center font-bold"
                 >
                   {loading ? (
@@ -583,7 +541,6 @@ export default function GetStudentDetailsPage() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                   <div>
                     <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Student Information</h2>
-                    <p className="text-xs text-indigo-500 font-bold uppercase tracking-wider mt-1">{safeTrim(batch).toUpperCase()} • {safeTrim(branch).toUpperCase()}</p>
                   </div>
                   {!isMobile ? (
                     <button

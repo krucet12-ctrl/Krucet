@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     // Validate roll number format first
     const validation = validateRollNumberFormat(rollNo);
     if (!validation.isValid) {
-      console.log('Invalid roll number format:', rollNo);
+
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
@@ -130,7 +130,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('Error in get-semester-results API:', error);
     return NextResponse.json({ error: message || 'An unknown error occurred' }, { status: 500 });
   }
-} 
+}

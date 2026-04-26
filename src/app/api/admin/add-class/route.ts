@@ -8,22 +8,22 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  console.log('/api/admin/add-class POST received');
+
 
   try {
     const payload = await req.json();
-    const { courseType, regulation, students } = payload;
+    const { courseType, regulation, students, tuitionFees } = payload;
 
     if (!adminDb) {
       throw new Error('Firestore not initialized');
     }
 
     if (!courseType || !regulation || !students || !Array.isArray(students)) {
-      console.error("Invalid payload provided. Students array missing or invalid.");
+
       return NextResponse.json({ success: false, error: 'Invalid payload provided' }, { status: 400 });
     }
 
-    console.log(`Incoming students: ${students.length} valid entries received.`);
+
 
     const firestoreBatch = adminDb.batch();
     const batchesEncountered = new Set<string>();
@@ -35,11 +35,11 @@ export async function POST(req: Request) {
     let count = 0;
     for (const student of students) {
       if (!student.batch || !student.branch || !student.rollNo) {
-        console.warn(`Skipping invalid student record:`, student);
+
         continue;
       }
       
-      console.log(`Saving student: ${student.rollNo} to classes/${courseType}/batches/${student.batch}/departments/${student.branch}/students`);
+
       
       batchesEncountered.add(student.batch);
       const combo = `${student.batch}_${student.branch}`;
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
       const docRef = adminDb.doc(`classes/${courseType}/batches/${student.batch}/departments/${student.branch}/students/${student.rollNo}`);
 
-      console.log("Student object:", student);
+
       firestoreBatch.set(docRef, {
         ...student,
         rollNo: student.rollNo,
@@ -71,7 +71,11 @@ export async function POST(req: Request) {
 
     batchesEncountered.forEach(b => {
       const batchDoc = adminDb.doc(`classes/${courseType}/batches/${b}`);
-      firestoreBatch.set(batchDoc, { exists: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      const batchUpdate: any = { exists: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+      if (tuitionFees) {
+        batchUpdate.tuitionFees = tuitionFees;
+      }
+      firestoreBatch.set(batchDoc, batchUpdate, { merge: true });
     });
 
     departmentsEncountered.forEach(combo => {
@@ -92,13 +96,13 @@ export async function POST(req: Request) {
     if (count > 0) {
       try {
         await firestoreBatch.commit();
-        console.log(`Successfully committed ${count} records.`);
+
       } catch (commitError) {
         console.error("Firestore error while committing batch:", commitError);
         throw new Error('Failed to commit student data to Firestore.');
       }
     } else {
-      console.warn("No valid students found to save. Count is 0.");
+
     }
 
     if (batchesEncountered.size > 0) {

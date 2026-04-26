@@ -5,13 +5,12 @@ import {
     UniversityInfo, Official, DepartmentDetails, FacultyMember,
     getUniversityInfo, updateUniversityInfo,
     getOfficials, addOfficial, updateOfficial, deleteOfficial, updateOfficialsOrder,
-    getDepartments, updateDepartment, getDepartmentById, deleteDepartment,
+    getDepartments, updateDepartment, deleteDepartment,
     getFacultyMembers, addFacultyMember, updateFacultyMember, deleteFacultyMember, updateFacultyOrder
 } from '@/lib/cmsService';
 import { auth, storage } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import Image from 'next/image';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
@@ -188,7 +187,6 @@ export default function UniversityContentAdmin() {
             setDepartments(deptsData);
             setFaculty(facultyData);
         } catch (e) {
-            console.error(e);
             showToast('Failed to load data', 'error');
         } finally {
             if (showLoader) setLoading(false);
@@ -222,7 +220,6 @@ export default function UniversityContentAdmin() {
             showToast("Data migrated successfully into Firebase", "success");
             loadData();
         } catch (e) {
-            console.error(e);
             showToast("Error migrating data", "error");
         } finally {
             setLoading(false);
@@ -237,7 +234,6 @@ export default function UniversityContentAdmin() {
             showToast('University info updated successfully!', 'success');
             await loadData(false);
         } catch (e) {
-            console.error(e);
             showToast('Failed to update university info', 'error');
         } finally {
             setIsSaving(false);
@@ -287,7 +283,6 @@ export default function UniversityContentAdmin() {
             showToast('Official saved successfully!', 'success');
 
         } catch (e: unknown) {
-            console.error(e);
             showToast(e instanceof Error ? e.message : 'Failed to save official. Please try again.', 'error');
         } finally {
             setIsSaving(false);
@@ -317,7 +312,6 @@ export default function UniversityContentAdmin() {
             setEditingDept(null);
             showToast(isNew ? "Department added successfully!" : "Department saved successfully!", "success");
         } catch (e) {
-            console.error(e);
             showToast("Failed to save department", "error");
         } finally {
             setIsSaving(false);
@@ -333,7 +327,6 @@ export default function UniversityContentAdmin() {
                 await loadData(false);
                 showToast("Department deleted successfully!", "success");
             } catch (e) {
-                console.error(e);
                 showToast("Failed to delete department", "error");
             } finally {
                 setIsSaving(false);
@@ -368,7 +361,6 @@ export default function UniversityContentAdmin() {
             await loadData(false);
             showToast("Faculty member saved successfully!", "success");
         } catch (e) {
-            console.error(e);
             showToast("Failed to save faculty member", "error");
         } finally {
             setIsSaving(false);
@@ -649,7 +641,6 @@ export default function UniversityContentAdmin() {
                                             try {
                                                 await updateOfficialsOrder(updates);
                                             } catch (err) {
-                                                console.error(err);
                                                 showToast("Failed to save new order.", "error");
                                             }
                                         }}
@@ -861,7 +852,6 @@ export default function UniversityContentAdmin() {
                                                             try {
                                                                 await updateFacultyOrder(updates);
                                                             } catch (err) {
-                                                                console.error(err);
                                                                 showToast("Failed to save new order.", "error");
                                                             }
                                                         }}

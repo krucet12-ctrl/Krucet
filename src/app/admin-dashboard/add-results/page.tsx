@@ -110,29 +110,30 @@ function ResultCard({ item }: { item: StoredResult }) {
   const style =
     RESULT_TYPE_STYLES[typeKey] ??
     { bg: "bg-slate-50", text: "text-slate-700", border: "border-slate-200", label: item.resultType || item.scrapeType || typeKey, dot: "bg-slate-400" };
+  
   const uploadDate = item.createdAt instanceof Timestamp
-    ? item.createdAt.toDate().toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+    ? item.createdAt.toDate().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '—';
   const semLabel = item.semester || "—";
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col h-full">
       {/* Top accent bar */}
-      <div className={`h-1.5 w-full ${style.dot}`} />
+      <div className={`h-1 w-full ${style.dot}`} />
 
-      <div className="p-5 flex flex-col gap-4 flex-1">
+      <div className="p-3 sm:p-4 flex flex-col gap-3 flex-1">
         {/* Header row */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-sm shrink-0">
-              <span className="text-white font-extrabold text-xs tracking-wide leading-tight text-center">{item.batch}</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-lg flex items-center justify-center shadow-sm shrink-0">
+              <span className="text-white font-extrabold text-[10px] tracking-wide leading-tight text-center">{item.batch}</span>
             </div>
-            <div>
-              <p className="font-extrabold text-slate-800 text-base leading-tight">{item.batch} Batch</p>
-              <p className="text-xs text-slate-400 font-semibold mt-0.5">{item.courseType || "—"}</p>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-slate-800 text-sm leading-none">{item.batch} Batch</span>
+              <span className="text-[10px] text-slate-500 font-bold mt-1">{item.courseType || "—"}</span>
             </div>
           </div>
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-extrabold uppercase tracking-widest shrink-0 ${style.bg} ${style.text} ${style.border}`}>
+          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-extrabold uppercase tracking-widest shrink-0 ${style.bg} ${style.text} ${style.border}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
             {style.label}
           </span>
@@ -141,31 +142,30 @@ function ResultCard({ item }: { item: StoredResult }) {
         {/* Divider */}
         <div className="h-px bg-slate-100" />
 
-        {/* Fields */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-0.5">
-            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Semester</p>
-            <p className="text-sm font-extrabold text-slate-800">{semLabel}</p>
+        {/* Inline Details */}
+        <div className="flex flex-col gap-1.5 text-xs">
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Semester:</span>
+            <span className="font-extrabold text-slate-800">{semLabel}</span>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Upload Date</p>
-            <p className="text-xs font-bold text-slate-700 leading-snug">{uploadDate}</p>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Uploaded:</span>
+            <span className="font-bold text-slate-700">{uploadDate}</span>
           </div>
-        </div>
-
-        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
-          <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Scrape Type / Result Type</p>
-          <p className="text-xs font-extrabold text-slate-800">
-            {item.scrapeType || "—"} / {item.resultType || "—"}
-          </p>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Type:</span>
+            <span className="font-bold text-slate-700">{item.scrapeType || "—"} / {item.resultType || "—"}</span>
+          </div>
         </div>
 
         {/* RSURL */}
-        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
-          <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">RSURL</p>
-          <p className="text-[11px] font-mono font-bold text-indigo-700 break-all leading-snug">
-            {item.rsurl || <span className="text-slate-400 italic font-normal">Not recorded</span>}
-          </p>
+        <div className="mt-auto pt-2">
+          <div className="bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5 flex items-center gap-2">
+            <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest shrink-0">URL:</span>
+            <p className="text-[10px] font-mono font-bold text-indigo-600 truncate w-full" title={item.rsurl}>
+              {item.rsurl || <span className="text-slate-400 italic font-normal">Not recorded</span>}
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -321,7 +321,7 @@ function CheckStoredResultsTab() {
               <p className="text-slate-600 font-bold text-base">No stored results found</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {filtered.map(item => <ResultCard key={item.id} item={item} />)}
             </div>
           )}
@@ -733,7 +733,7 @@ export default function ResultsManagementPage() {
         </div>
 
         {/* Tab Content */}
-        <div className="w-full max-w-4xl mx-auto">
+        <div className={`w-full mx-auto ${activeTab === 'check' ? 'max-w-6xl' : 'max-w-4xl'}`}>
           {activeTab === "bulk" && <BulkScrapingTab />}
           {activeTab === "check" && <CheckStoredResultsTab />}
         </div>

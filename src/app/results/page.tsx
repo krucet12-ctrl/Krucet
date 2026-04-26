@@ -75,7 +75,7 @@ export default function ResultsPage() {
 
     setError("");
     setLoading(true);
-    
+
     try {
       const response = await fetch('/api/get-student-data', {
         method: 'POST',
@@ -99,13 +99,11 @@ export default function ResultsPage() {
       });
 
       setAvailableSemesters(sems);
-      
+
       if (sems.length > 0) {
-        const latest = sems[sems.length - 1];
-        setSemester(latest);
-        const semData = data.results[latest];
-        setResults([...semData.subjects]);
-        setGpa(semData.sgpa);
+        setSemester("");
+        setResults([]);
+        setGpa(null);
       } else {
         setError("No results found for this student record.");
         setStudentInfo(null);
@@ -133,7 +131,7 @@ export default function ResultsPage() {
 
   const getDocumentHTML = () => {
     if (!tableRef.current || !studentInfo) return "";
-    
+
     const logoUrl = window.location.origin + UNIVERSITY_LOGO;
     const semesterLabel = semester ? semester.replace('SEM', 'Semester ') : "";
     const currentDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -351,7 +349,6 @@ export default function ResultsPage() {
 
   const handlePrintTable = () => {
     if (window.innerWidth < 768) {
-      alert("Print is only available on desktop.");
       return;
     }
     const htmlContent = getDocumentHTML();
@@ -370,7 +367,7 @@ export default function ResultsPage() {
   return (
     <div className="w-full space-y-8 animate-fade-in relative pb-12">
       <div className="absolute top-0 right-0 w-80 h-80 bg-blue-100/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
-      
+
       {/* Header Section */}
       <div className="text-center relative">
         <h1 className="heading-premium inline-block relative">
@@ -439,12 +436,13 @@ export default function ResultsPage() {
                 </div>
               </div>
               {!isMobile ? (
-                <button 
+                <button
                   onClick={handlePrintTable}
-                  className="btn-primary print-btn text-sm px-6 py-3 flex items-center gap-2.5 shadow-indigo-200/50 shadow-lg hover:shadow-indigo-300 transition-all hover:-translate-y-0.5"
+                  disabled={!semester}
+                  className={`btn-primary print-btn text-sm px-6 py-3 flex items-center gap-2.5 transition-all ${!semester ? 'opacity-50 cursor-not-allowed' : 'shadow-indigo-200/50 shadow-lg hover:shadow-indigo-300 hover:-translate-y-0.5'}`}
                 >
                   <span className="text-lg">🎓</span>
-                  Download Official Memo
+                  Download Memo
                 </button>
               ) : (
                 <div className="text-xs text-amber-600 font-semibold bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
@@ -496,7 +494,19 @@ export default function ResultsPage() {
               </div>
 
               <div ref={tableRef}>
-                <ResultsTable results={results} variant="screen" />
+                {semester ? (
+                  <ResultsTable results={results} variant="screen" />
+                ) : (
+                  <div className="text-center p-12 bg-slate-50/50 rounded-3xl border border-slate-100 mt-6 shadow-sm">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-slate-100">
+                      <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-slate-600 font-bold text-lg">Select a Semester</p>
+                    <p className="text-slate-400 text-sm mt-1">Please select a semester from the dropdown above to view your academic results.</p>
+                  </div>
+                )}
               </div>
             </div>
 

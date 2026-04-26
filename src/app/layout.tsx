@@ -19,7 +19,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Krishna University - College of Engineering and Technology",
+  title: "Student Assist Portal - Krishna University",
   description: "Academic Portal for Results, CGPA Management & Department Information",
 };
 
@@ -30,8 +30,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.variable} ${outfit.variable} font-sans antialiased bg-slate-50 text-slate-900 flex flex-col min-h-screen`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} ${outfit.variable} font-sans antialiased bg-slate-50 text-slate-900 flex flex-col min-h-screen`} suppressHydrationWarning>
         <div className="flex-grow flex flex-col w-full relative">
           {/* subtle animated background element behind everything */}
           <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-indigo-50/50 to-transparent pointer-events-none -z-10" />

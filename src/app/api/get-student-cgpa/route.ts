@@ -8,67 +8,7 @@ import { safeTrim } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-// ── Module-level cache (survives across requests in the same server process) ──
-const curriculumCache: Record<string, { data: any[], timestamp: number }> = {};
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-interface CurriculumEntry {
-  code: string;
-  credits: number;
-  maxMarks: number;
-  semKey: string;
-}
-
-/**
- * Fetch all semester curriculum docs in parallel and return a flat map
- * keyed by normalized (UPPER) subject code.
- */
-async function buildCurriculumMap(
-  courseType: string,
-  regulation: string,
-  department: string
-): Promise<Map<string, CurriculumEntry>> {
-  const map = new Map<string, CurriculumEntry>();
-  if (!regulation || !department) return map;
-
-  const regKey  = `${courseType}_${regulation.toUpperCase()}`;
-  const deptKey = department.toUpperCase();
-  const semKeys = Array.from({ length: 8 }, (_, i) => `SEM${i + 1}`);
-
-  await Promise.all(
-    semKeys.map(async (semKey) => {
-      const cacheKey = `${regKey}-${deptKey}-${semKey}`;
-
-      if (!curriculumCache[cacheKey] || Date.now() - curriculumCache[cacheKey].timestamp > CACHE_TTL) {
-        const curRef = doc(db, 'curriculum', regKey, deptKey, semKey);
-        const snap = await getDoc(curRef);
-        curriculumCache[cacheKey] = {
-          data: snap.exists() ? (snap.data()?.Subjects || []) : [],
-          timestamp: Date.now(),
-        };
-      }
-
-      const subjects: any[] = curriculumCache[cacheKey].data;
-      subjects.forEach((s: any) => {
-        const rawCode = (s.code || s.subjectCode || s.subject_code || '').toString().trim().toUpperCase();
-        if (!rawCode) return;
-
-        // Resolve maxMarks — support all common field name variants
-        const rawMax = s.maxMarks ?? s.max_marks ?? s.MaxMarks ?? null;
-        const maxMarks = rawMax !== null && Number(rawMax) > 0 ? Number(rawMax) : null;
-
-        map.set(rawCode, {
-          code:     rawCode,
-          credits:  Number(s.credit || s.Credit || s.credits || 0),
-          maxMarks: maxMarks ?? 100,
-          semKey,
-        });
-      });
-    })
-  );
-
-  return map;
-}
+import { buildCurriculumMap } from '../../../lib/curriculumHelper';
 
 export async function POST(req: NextRequest) {
   try {
@@ -97,11 +37,22 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Resolve regulation & department
-    const { batch, branch: department } = parseRollNumber(rollNo);
-    const courseType  = (student as any).courseType || 'BTech';
+    const { batch, branch: department, courseType: parsedCourseType } = parseRollNumber(rollNo);
+    const courseType  = parsedCourseType || 'BTech';
     const regulation  = await getRegulationForRollNumber(rollNo, courseType);
 
     const curriculumMap = await buildCurriculumMap(courseType, regulation || '', department);
+
+    // Build reverse map from existing semesterResults to handle subjects missing from curriculum
+    const semesterResults = student.semesterResults || {};
+    const fallbackSemKeyMap = new Map<string, string>();
+    for (const [key, semObj] of Object.entries(semesterResults)) {
+      if (semObj && (semObj as Record<string, any>).subjects) {
+        for (const code of Object.keys((semObj as Record<string, any>).subjects)) {
+          fallbackSemKeyMap.set(code.trim().toUpperCase(), key.toUpperCase());
+        }
+      }
+    }
 
     // 4. Map subject results → semester buckets
     const resultsData: Record<string, any> = {};
@@ -114,9 +65,9 @@ export async function POST(req: NextRequest) {
         // Subject not in curriculum — use defaults
       }
 
-      const semKey   = cur?.semKey   ?? 'Unknown';
-      const credits  = cur?.credits  ?? 0;
-      const maxMarks = cur?.maxMarks ?? 100;
+      const semKey   = cur?.semKey   ?? (fallbackSemKeyMap.get(normalizedCode) || 'SEM1');
+      const credits  = cur?.credits  ?? Number(subInfo.credits || 0);
+      const maxMarks = cur?.maxMarks ?? Number(subInfo.maxMarks || 100);
 
       if (!resultsData[semKey]) {
         resultsData[semKey] = { subjects: [], sgpa: null, hasFailed: false, earnedCredits: 0, totalPoints: 0 };

@@ -32,14 +32,11 @@ export default function Navbar() {
                             />
                         </div>
                         <div className="flex flex-col justify-center text-white">
-                            <h1 className="font-bold text-lg md:text-xl leading-tight">
-                                Krishna University
+                            <h1 className="font-extrabold text-lg md:text-xl leading-tight text-blue-200 drop-shadow-sm">
+                                Student Assist Portal
                             </h1>
                             <p className="text-xs text-indigo-100 opacity-90 mt-0.5">
-                                University College of Engineering and Technology
-                            </p>
-                            <p className="text-xs text-indigo-200 opacity-80 mt-0.5">
-                                Machilipatnam, Andhra Pradesh, India - 521004
+                                Krishna University College of Engineering & Technology
                             </p>
                         </div>
                     </Link>

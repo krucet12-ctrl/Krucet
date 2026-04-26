@@ -32,9 +32,29 @@ export async function GET(req: NextRequest) {
             }
         });
 
+        let totalFeeAmount = 40500;
+        const match = rollNumber.match(/^([YL]\d{2})([A-Z]{2,6})(\d+)$/i);
+        if (match) {
+            const batch = match[1].toUpperCase();
+            const rollUpper = rollNumber.toUpperCase();
+            let courseType = 'BTech';
+            if (rollUpper.includes('MTH')) {
+                courseType = 'MTech';
+            } else if (rollUpper.includes('CSE') || rollUpper.includes('ECE') || rollUpper.includes('AIML')) {
+                courseType = 'BTech';
+            }
+
+            const classDoc = await adminDb.doc(`classes/${courseType}/batches/${batch}`).get();
+            if (classDoc.exists) {
+                const tuitionData = classDoc.data()?.tuitionFees || {};
+                totalFeeAmount = tuitionData[`year${yearOfFee}`] || 40500;
+            }
+        }
+
         return NextResponse.json({
             success: true,
             paidAmount: totalPaid,
+            totalFeeAmount,
         });
 
     } catch (error) {

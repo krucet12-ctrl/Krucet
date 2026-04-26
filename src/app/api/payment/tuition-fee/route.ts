@@ -21,17 +21,44 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Check for duplicate DU Number using Admin SDK
-        const duSnapshot = await adminDb
+        const match = rollNumber.match(/^([YL]\d{2})([A-Z]{2,6})(\d+)$/i);
+        if (!match) {
+            return NextResponse.json({ success: false, error: 'Invalid roll number format' }, { status: 400 });
+        }
+        const batch = match[1].toUpperCase();
+        const rollUpper = rollNumber.toUpperCase();
+        let courseType = 'BTech';
+        if (rollUpper.includes('MTH')) {
+            courseType = 'MTech';
+        } else if (rollUpper.includes('CSE') || rollUpper.includes('ECE') || rollUpper.includes('AIML')) {
+            courseType = 'BTech';
+        }
+
+        // Fetch tuition fees for the year from class document
+        const classDoc = await adminDb.doc(`classes/${courseType}/batches/${batch}`).get();
+        if (!classDoc.exists) {
+            return NextResponse.json({ success: false, error: 'Class data not found for the student' }, { status: 404 });
+        }
+
+        const classData = classDoc.data();
+        const tuitionData = classData?.tuitionFees || {};
+        const totalFeeForYear = tuitionData[`year${yearOfFee}`];
+        if (!totalFeeForYear) {
+            return NextResponse.json({ success: false, error: `Tuition fee not set for year ${yearOfFee}` }, { status: 400 });
+        }
+
+        // Calculate due amount
+        const paymentsSnapshot = await adminDb
             .collection('tuitionFeePayments')
-            .where('duNumber', '==', duNumber)
+            .where('rollNumber', '==', rollNumber)
+            .where('yearOfFee', '==', yearOfFee)
             .get();
 
-        if (!duSnapshot.empty) {
-            return NextResponse.json(
-                { success: false, error: 'This DU Number has already been used for a payment submission' },
-                { status: 400 }
-            );
+        const totalPaid = paymentsSnapshot.docs.reduce((sum: number, doc: any) => sum + doc.data().amount, 0);
+        const dueAmount = totalFeeForYear - totalPaid - parseFloat(amount);
+
+        if (dueAmount < 0) {
+            return NextResponse.json({ success: false, error: 'Overpayment detected' }, { status: 400 });
         }
 
         const paymentData = {
@@ -54,6 +81,7 @@ export async function POST(req: NextRequest) {
             message: 'Payment proof submitted successfully',
             documentId: docRef.id,
             fileUrl: paymentProofLink,
+            dueAmount,
         });
 
     } catch (error) {

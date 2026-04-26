@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { db } from '../../../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { safeTrim } from '@/lib/utils';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -15,10 +15,7 @@ interface SubjectEntry {
 
 const MAX_MARKS_OPTIONS = [50,100,200] as const;
 
-const DEPT_OPTIONS = {
-  BTech: ["CSE", "ECE", "AIML"],
-  MTech: ["CSE"],
-};
+
 
 const SEM_OPTIONS = {
   BTech: [1, 2, 3, 4, 5, 6, 7, 8],
@@ -33,6 +30,8 @@ export default function ManageCurriculumPage() {
   const [branch, setBranch] = useState("");
   const [semester, setSemester] = useState("SEM1");
   const [subjects, setSubjects] = useState<SubjectEntry[]>([]);
+  const [originalBranch, setOriginalBranch] = useState("");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
@@ -60,9 +59,11 @@ export default function ManageCurriculumPage() {
         }));
         setSubjects(fetchedSubjects);
         setMessage({ text: 'Curriculum loaded successfully.', type: 'success' });
+        setOriginalBranch(branch.toUpperCase());
       } else {
         setSubjects([]);
         setMessage({ text: 'No curriculum found. You can create a new one.', type: 'info' });
+        setOriginalBranch("");
       }
       setIsLoaded(true);
     } catch (error: any) {
@@ -94,18 +95,37 @@ export default function ManageCurriculumPage() {
       return;
     }
 
+    const currentBranch = safeTrim(branch).toUpperCase();
+    if (originalBranch && currentBranch !== originalBranch) {
+      setShowConfirmModal(true);
+      return;
+    }
+
+    proceedSave();
+  };
+
+  const proceedSave = async () => {
+    setShowConfirmModal(false);
+    const currentBranch = safeTrim(branch).toUpperCase();
+
     setLoading(true);
     setMessage({ text: '', type: '' });
 
     try {
-      const docRef = doc(db, "curriculum", `${courseType}_${regulation.toUpperCase()}`, branch.toUpperCase(), semester);
-      await setDoc(docRef, {
+      const newDocRef = doc(db, "curriculum", `${courseType}_${regulation.toUpperCase()}`, currentBranch, semester);
+      await setDoc(newDocRef, {
         Subjects: subjects.map(s => ({
           code: safeTrim(s.code).toUpperCase(),
           credit: Number(s.credit),
           maxMarks: Number(s.maxMarks)
         }))
       });
+
+      if (originalBranch && currentBranch !== originalBranch) {
+        const oldDocRef = doc(db, "curriculum", `${courseType}_${regulation.toUpperCase()}`, originalBranch, semester);
+        await deleteDoc(oldDocRef);
+        setOriginalBranch(currentBranch);
+      }
 
       setMessage({ text: 'Curriculum saved successfully.', type: 'success' });
     } catch (error: any) {
@@ -178,6 +198,7 @@ export default function ManageCurriculumPage() {
                         setBranch("");
                         setSemester("SEM1");
                         setIsLoaded(false);
+                        setOriginalBranch("");
                       }}
                       className={`flex-1 py-2.5 text-sm font-extrabold transition-all ${courseType === ct
                           ? "bg-indigo-600 text-white shadow-inner"
@@ -202,24 +223,22 @@ export default function ManageCurriculumPage() {
                       placeholder="20, 23, 26...etc"
                       className="flex-1 px-4 py-2.5 outline-none text-sm font-bold"
                       value={regulationNumber}
-                      onChange={(e) => setRegulationNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                      onChange={(e) => setRegulationNumber(e.target.value)}
+                      onBlur={() => setRegulationNumber(regulationNumber.replace(/[^0-9]/g, ''))}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="label-premium">Department</label>
-                  <select
+                  <input
+                    type="text"
+                    placeholder="CSE / ECE / AIML / MTH"
                     value={branch}
                     onChange={(e) => setBranch(e.target.value)}
-                    className="input-premium font-bold bg-white"
-                  >
-                    <option value="" disabled>Select Department</option>
-                    {DEPT_OPTIONS[courseType].map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
+                    onBlur={() => setBranch(branch.toUpperCase())}
+                    className="input-premium font-bold bg-white uppercase"
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="label-premium">Semester</label>
@@ -269,7 +288,19 @@ export default function ManageCurriculumPage() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-slate-200/60 pb-6">
                 <div>
                   <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Subjects Editor</h2>
-                  <p className="text-xs text-indigo-500 font-bold uppercase tracking-wider mt-1">{courseType} • {regulation || "Reg"} • {branch || "Dept"} • {semester}</p>
+                  <div className="flex items-center flex-wrap gap-2 mt-2">
+                    <p className="text-sm text-indigo-500 font-bold uppercase tracking-wider">{courseType} <span className="opacity-50 px-1">•</span> {regulation || "Reg"} <span className="opacity-50 px-1">•</span></p>
+                    <input 
+                      type="text" 
+                      value={branch} 
+                      onChange={(e) => setBranch(e.target.value)}
+                      onBlur={() => setBranch(branch.toUpperCase())}
+                      className="px-3 py-1 text-sm font-extrabold text-indigo-900 bg-white border-2 border-indigo-300 focus:border-indigo-500 hover:border-indigo-400 rounded-md uppercase outline-none w-24 text-center shadow-sm transition-colors cursor-text"
+                      title="Edit Department"
+                      placeholder="DEPT"
+                    />
+                    <p className="text-sm text-indigo-500 font-bold uppercase tracking-wider"><span className="opacity-50 px-1">•</span> {semester}</p>
+                  </div>
                 </div>
                 <button
                   onClick={handleAddSubject}
@@ -297,7 +328,8 @@ export default function ManageCurriculumPage() {
                           <input
                             type="text"
                             value={sub.code}
-                            onChange={e => handleSubjectChange(idx, 'code', e.target.value.toUpperCase())}
+                            onChange={e => handleSubjectChange(idx, 'code', e.target.value)}
+                            onBlur={() => handleSubjectChange(idx, 'code', sub.code.toUpperCase())}
                             className="input-premium py-1.5 px-3 font-mono text-xs uppercase cursor-text bg-white group-hover/row:bg-slate-50"
                             placeholder="CODE"
                           />
@@ -370,6 +402,37 @@ export default function ManageCurriculumPage() {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 animate-fade-in border border-slate-100">
+            <div className="flex items-center space-x-3 text-amber-500 mb-5 bg-amber-50 w-fit p-3 rounded-2xl">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-extrabold text-slate-800 mb-3 tracking-tight">Confirm Move</h3>
+            <p className="text-slate-600 mb-8 font-medium leading-relaxed">
+              Changing department from <strong className="text-slate-800 bg-slate-100 px-2 py-0.5 rounded">{originalBranch}</strong> to <strong className="text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{safeTrim(branch).toUpperCase()}</strong> will permanently move the curriculum data to the new department. Do you want to continue?
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="px-6 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={proceedSave}
+                className="px-6 py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm"
+              >
+                Continue & Move
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

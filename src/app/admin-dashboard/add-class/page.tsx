@@ -42,6 +42,7 @@ function AddClassTab() {
     const [progress, setProgress] = useState({ current: 0, total: 0 });
     const [errorMsg, setErrorMsg] = useState('');
     const [successStats, setSuccessStats] = useState({ total: 0, batches: [] as string[] });
+    const [tuitionFees, setTuitionFees] = useState({ year1: '', year2: '', year3: '', year4: '' });
 
     const [detectedRanges, setDetectedRanges] = useState<DetectedRange[]>([]);
     const [parsedDataMap, setParsedDataMap] = useState<Record<string, any>>({});
@@ -184,7 +185,17 @@ function AddClassTab() {
                 const req = await fetch('/api/admin/add-class', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ courseType, regulation: regulation, students: chunk })
+                    body: JSON.stringify({
+                        courseType,
+                        regulation,
+                        students: chunk,
+                        tuitionFees: {
+                            year1: Number(tuitionFees.year1) || 0,
+                            year2: Number(tuitionFees.year2) || 0,
+                            year3: Number(tuitionFees.year3) || 0,
+                            year4: Number(tuitionFees.year4) || 0
+                        }
+                    })
                 });
                 let res;
                 try { res = await req.json(); } catch { throw new Error('Server returned an invalid response.'); }
@@ -252,6 +263,31 @@ function AddClassTab() {
                         <div className="bg-slate-50/70 rounded-2xl border border-slate-200/60 p-5 space-y-5">
                             <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                 <span className="w-5 h-5 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-[10px] font-black">2</span>
+                                Tuition Fees
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                {[1, 2, 3, 4].map(year => (
+                                    <div key={year} className="space-y-2">
+                                        <label className="label-premium">{year}{year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year Tuition Fee</label>
+                                        <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                            <span className="bg-slate-100 px-4 py-2.5 font-bold text-slate-600 text-sm">₹</span>
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                placeholder={`Enter ${year}${year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} year fee`}
+                                                className="input-prefix-inner"
+                                                value={tuitionFees[`year${year}` as keyof typeof tuitionFees]}
+                                                onChange={(e) => setTuitionFees(prev => ({ ...prev, [`year${year}`]: e.target.value.replace(/[^0-9]/g, '') }))}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-50/70 rounded-2xl border border-slate-200/60 p-5 space-y-5">
+                            <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-5 h-5 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-[10px] font-black">3</span>
                                 File Upload
                             </h3>
                             <div className="space-y-2">
@@ -423,6 +459,8 @@ function CheckClassTab() {
     const [updateStatus, setUpdateStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [updateMsg, setUpdateMsg] = useState('');
     const [currentRegulation, setCurrentRegulation] = useState('');
+    const [editTuitionFees, setEditTuitionFees] = useState({ year1: '', year2: '', year3: '', year4: '' });
+    const [isEditingFees, setIsEditingFees] = useState(false);
 
     const hasChanged = fetchStatus === 'success' && selectedRegulation !== currentRegulation && selectedRegulation !== '';
 
@@ -435,6 +473,7 @@ function CheckClassTab() {
         setUpdateStatus('idle');
         setUpdateMsg('');
         setLateralExists(false);
+        setIsEditingFees(false);
 
         try {
             const batchKey = batch.trim().toUpperCase();
@@ -461,14 +500,24 @@ function CheckClassTab() {
             const mapData = mapSnap.exists() ? mapSnap.data() : {};
             const regulation = mapData[batchKey] || '';
             
+            
             setClassData(batchSnap.data() as ClassDocData);
             setCurrentRegulation(regulation);
             // Strip the leading 'R' so the input shows just the digits
             setSelectedRegulationNumber(regulation.replace(/^R/i, ''));
             setFetchedPath(batchPath);
+            
+            const tf = batchSnap.data()?.tuitionFees || {};
+            setEditTuitionFees({
+                year1: tf.year1?.toString() || '',
+                year2: tf.year2?.toString() || '',
+                year3: tf.year3?.toString() || '',
+                year4: tf.year4?.toString() || ''
+            });
+
             setFetchStatus('success');
         } catch (err) {
-            console.error(err);
+
             setFetchStatus('error');
         }
     };
@@ -497,9 +546,43 @@ function CheckClassTab() {
             setUpdateMsg('Regulation updated successfully');
             setTimeout(() => setUpdateStatus('idle'), 3500);
         } catch (err) {
-            console.error(err);
+
             setUpdateStatus('error');
-            setUpdateMsg('Failed to update regulation. Please try again.');
+            setTimeout(() => setUpdateStatus('idle'), 3500);
+        }
+    };
+
+    const handleUpdateFees = async () => {
+        setUpdateStatus('loading');
+        setUpdateMsg('');
+        try {
+            const batchKey = batch.trim().toUpperCase();
+            const latBatchKey = lateralBatch ? lateralBatch.toUpperCase() : '';
+            
+            const feesData = {
+                year1: Number(editTuitionFees.year1) || 0,
+                year2: Number(editTuitionFees.year2) || 0,
+                year3: Number(editTuitionFees.year3) || 0,
+                year4: Number(editTuitionFees.year4) || 0
+            };
+
+            const batchRef = doc(db, `classes/${courseType}/batches/${batchKey}`);
+            await setDoc(batchRef, { tuitionFees: feesData }, { merge: true });
+
+            if (latBatchKey && lateralExists) {
+                const latBatchRef = doc(db, `classes/${courseType}/batches/${latBatchKey}`);
+                await setDoc(latBatchRef, { tuitionFees: feesData }, { merge: true });
+            }
+            
+            setClassData(prev => prev ? { ...prev, tuitionFees: feesData } : null);
+            setIsEditingFees(false);
+            setUpdateStatus('success');
+            setUpdateMsg('Tuition fees updated successfully');
+            setTimeout(() => setUpdateStatus('idle'), 3500);
+        } catch (err) {
+
+            setUpdateStatus('error');
+            setUpdateMsg('Failed to update tuition fees. Please try again.');
             setTimeout(() => setUpdateStatus('idle'), 3500);
         }
     };
@@ -662,6 +745,63 @@ function CheckClassTab() {
                             <span className="font-bold">{updateMsg}</span>
                         </div>
                     )}
+
+                    {/* Tuition Fees Edit */}
+                    <div className="bg-slate-50/70 rounded-2xl border border-slate-200/60 p-5 space-y-4 mt-4">
+                        <div className="flex justify-between items-center mb-2 border-b border-indigo-100/60 pb-3">
+                            <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <RefreshCw className="w-3.5 h-3.5" /> Update Tuition Fees
+                            </h4>
+                            <button onClick={() => setIsEditingFees(!isEditingFees)} className="text-[11px] uppercase tracking-widest font-extrabold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
+                                <Edit3 className="w-3.5 h-3.5" /> {isEditingFees ? 'Cancel' : 'Edit Fees'}
+                            </button>
+                        </div>
+
+                        {isEditingFees ? (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {[1, 2, 3, 4].map(year => (
+                                        <div key={year} className="space-y-2">
+                                            <label className="label-premium">{year}{year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year Tuition Fee</label>
+                                            <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                                <span className="bg-slate-100 px-4 py-2.5 font-bold text-slate-600 text-sm">₹</span>
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    placeholder={`Enter ${year}${year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} year fee`}
+                                                    className="input-prefix-inner"
+                                                    value={editTuitionFees[`year${year}` as keyof typeof editTuitionFees]}
+                                                    onChange={(e) => setEditTuitionFees(prev => ({ ...prev, [`year${year}`]: e.target.value.replace(/[^0-9]/g, '') }))}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={handleUpdateFees}
+                                    disabled={updateStatus === 'loading'}
+                                    className="btn-primary px-6 py-2.5 flex items-center justify-center gap-2 font-bold w-full sm:w-auto transition-all"
+                                >
+                                    {updateStatus === 'loading' ? (
+                                        <><Loader2 className="w-4 h-4 animate-spin text-white" /><span>Updating...</span></>
+                                    ) : (
+                                        <><Save className="w-4 h-4 text-white" /><span>Save Tuition Fees</span></>
+                                    )}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                {[1, 2, 3, 4].map(year => (
+                                    <div key={year} className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col items-center justify-center text-center shadow-sm">
+                                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Year {year}</span>
+                                        <span className="text-lg font-black text-slate-800">
+                                            ₹{classData.tuitionFees?.[`year${year}`]?.toLocaleString() || '0'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 

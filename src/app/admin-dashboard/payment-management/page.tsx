@@ -38,6 +38,7 @@ export default function PaymentManagement() {
     });
     const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, rejected: 0 });
     const [tuitionPaidAmounts, setTuitionPaidAmounts] = useState<{ [key: string]: number }>({});
+    const [tuitionTotalFees, setTuitionTotalFees] = useState<{ [key: string]: number }>({});
 
     // Modal State
     const [selectedProof, setSelectedProof] = useState<string | null>(null);
@@ -57,14 +58,17 @@ export default function PaymentManagement() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const calculateTuitionPaidAmount = async (rollNumber: string, yearOfFee: number): Promise<number> => {
+    const calculateTuitionPaidAmount = async (rollNumber: string, yearOfFee: number): Promise<{ paid: number, total: number }> => {
         try {
             const response = await fetch(`/api/admin/calculate-tuition-paid?rollNumber=${rollNumber}&yearOfFee=${yearOfFee}`);
             const result = await response.json();
-            return result.paidAmount || 0;
+            return {
+                paid: result.paidAmount || 0,
+                total: result.totalFeeAmount || 40500
+            };
         } catch (error) {
-            console.error('Error calculating paid amount:', error);
-            return 0;
+
+            return { paid: 0, total: 40500 };
         }
     };
 
@@ -87,19 +91,22 @@ export default function PaymentManagement() {
 
                 // Calculate paid amounts for tuition fees
                 const paidAmounts: { [key: string]: number } = {};
+                const totalFees: { [key: string]: number } = {};
                 for (const payment of result.data) {
                     if (payment.collection === 'tuitionFeePayments' && payment.yearOfFee) {
                         const key = `${payment.rollNumber}_${payment.yearOfFee}`;
                         if (!(key in paidAmounts)) {
-                            const paid = await calculateTuitionPaidAmount(payment.rollNumber, payment.yearOfFee);
+                            const { paid, total } = await calculateTuitionPaidAmount(payment.rollNumber, payment.yearOfFee);
                             paidAmounts[key] = paid;
+                            totalFees[key] = total;
                         }
                     }
                 }
                 setTuitionPaidAmounts(paidAmounts);
+                setTuitionTotalFees(totalFees);
             }
         } catch (error) {
-            console.error('Failed to fetch payments:', error);
+
         } finally {
             setLoading(false);
         }
@@ -114,7 +121,7 @@ export default function PaymentManagement() {
     }, [filters]);
 
     const updateStatus = async (id: string, collectionName: string, newStatus: string, extraData?: any) => {
-        console.log('Payment ID:', id, '| Collection:', collectionName, '| Status:', newStatus);
+
         try {
             const bodyData = { id, collection: collectionName, status: newStatus, ...extraData };
             const response = await fetch('/api/admin/payments/update-status', {
@@ -133,11 +140,11 @@ export default function PaymentManagement() {
                 showToast(`Payment ${newStatus} successfully`, 'success');
             } else {
                 const errMsg = result?.error || `Failed to update status to ${newStatus}`;
-                console.error('Update status error:', errMsg);
+
                 showToast(errMsg, 'error');
             }
         } catch (error: any) {
-            console.error('Failed to update status:', error);
+
             showToast(error?.message || 'An error occurred during status update', 'error');
         }
     };
@@ -362,7 +369,7 @@ export default function PaymentManagement() {
                                                             <div className="space-y-1">
                                                                 <div className="flex justify-between text-xs">
                                                                     <span className="text-indigo-700 font-semibold">Total:</span>
-                                                                    <span className="font-bold text-indigo-900">₹ 40,500</span>
+                                                                    <span className="font-bold text-indigo-900">₹ {(tuitionTotalFees[`${payment.rollNumber}_${payment.yearOfFee}`] || 40500).toLocaleString('en-IN')}</span>
                                                                 </div>
                                                                 <div className="flex justify-between text-xs">
                                                                     <span className="text-indigo-700 font-semibold">Paid:</span>
@@ -370,7 +377,7 @@ export default function PaymentManagement() {
                                                                 </div>
                                                                 <div className="flex justify-between text-xs">
                                                                     <span className="text-indigo-700 font-semibold">Due:</span>
-                                                                    <span className="font-bold text-indigo-900">₹ {Math.max(0, 40500 - (tuitionPaidAmounts[`${payment.rollNumber}_${payment.yearOfFee}`] || 0)).toLocaleString('en-IN')}</span>
+                                                                    <span className="font-bold text-indigo-900">₹ {Math.max(0, (tuitionTotalFees[`${payment.rollNumber}_${payment.yearOfFee}`] || 40500) - (tuitionPaidAmounts[`${payment.rollNumber}_${payment.yearOfFee}`] || 0)).toLocaleString('en-IN')}</span>
                                                                 </div>
                                                             </div>
                                                         </div>

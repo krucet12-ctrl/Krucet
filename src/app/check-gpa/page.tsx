@@ -87,7 +87,7 @@ const CheckGpaPage = () => {
       setStudentInfo(data.student);
       const cgpaVal = Number(data.cgpa);
       setCgpa(!Number.isNaN(cgpaVal) ? cgpaVal.toFixed(2) : null);
-      setPercentage(!Number.isNaN(cgpaVal) ? (cgpaVal * 10).toFixed(2) : null);
+      setPercentage(!Number.isNaN(cgpaVal) ? (cgpaVal * 9.5).toFixed(2) : null);
       setSemestersWithResults(data.semestersWithResults || []);
       setSemesterDetails(data.semesterDetails || {});
     } catch (err: unknown) {
@@ -99,7 +99,6 @@ const CheckGpaPage = () => {
 
   const handlePrint = () => {
     if (window.innerWidth < 768) {
-      window.alert('Printing is only available on desktop or laptop devices.');
       return;
     }
 
@@ -122,9 +121,9 @@ const CheckGpaPage = () => {
     const classAwarded = finalCGPA !== null
       ? finalCGPA >= 8.0 ? 'First Class with Distinction'
         : finalCGPA >= 7.0 ? 'First Class'
-        : finalCGPA >= 6.0 ? 'Second Class'
-        : finalCGPA >= 5.0 ? 'Pass Class'
-        : 'Fail'
+          : finalCGPA >= 6.0 ? 'Second Class'
+            : finalCGPA >= 5.0 ? 'Pass Class'
+              : 'Fail'
       : 'N/A';
 
     const totalCreditsAll = semestersWithResults.reduce(
@@ -156,21 +155,20 @@ const CheckGpaPage = () => {
     // Month & Year of most recent semester exam
     const lastSem = semestersWithResults[semestersWithResults.length - 1] || '';
     const lastSemNum = parseInt(lastSem.replace('SEM', '')) || 0;
-    const examMonthYear = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
     // Group semesters by year for display
     const yearGroups: { label: string; sems: string[] }[] = [
-      { label: 'I YEAR', sems: semestersWithResults.filter(s => [1,2].includes(parseInt(s.replace('SEM','')))) },
-      { label: 'II YEAR', sems: semestersWithResults.filter(s => [3,4].includes(parseInt(s.replace('SEM','')))) },
-      { label: 'III YEAR', sems: semestersWithResults.filter(s => [5,6].includes(parseInt(s.replace('SEM','')))) },
-      { label: 'IV YEAR', sems: semestersWithResults.filter(s => [7,8].includes(parseInt(s.replace('SEM','')))) },
+      { label: 'I YEAR', sems: semestersWithResults.filter(s => [1, 2].includes(parseInt(s.replace('SEM', '')))) },
+      { label: 'II YEAR', sems: semestersWithResults.filter(s => [3, 4].includes(parseInt(s.replace('SEM', '')))) },
+      { label: 'III YEAR', sems: semestersWithResults.filter(s => [5, 6].includes(parseInt(s.replace('SEM', '')))) },
+      { label: 'IV YEAR', sems: semestersWithResults.filter(s => [7, 8].includes(parseInt(s.replace('SEM', '')))) },
     ].filter(g => g.sems.length > 0);
 
     const semTableRows = yearGroups.map(group => {
       const yearRow = `<tr style="background:#e8e8e8"><td colspan="5" style="font-weight:800;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;padding:4px 7px">${group.label}</td></tr>`;
       const semRows = group.sems.map(sem => {
         const d = semesterDetails[sem] || { credits: null, gpa: null, gradePoints: null };
-        const semInYear = parseInt(sem.replace('SEM','')) % 2 === 1 ? 'I Semester' : 'II Semester';
+        const semInYear = parseInt(sem.replace('SEM', '')) % 2 === 1 ? 'I Semester' : 'II Semester';
         const sgpa = d.gpa !== null && d.gpa !== undefined ? Number(d.gpa).toFixed(2) : '-';
         return `<tr>
           <td style="padding-left:14px">${semInYear}</td>
@@ -206,10 +204,13 @@ const CheckGpaPage = () => {
             .hdr-title { display: inline-block; margin-top: 9px; border: 1px solid #000; padding: 3px 22px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
 
             /* Student Details */
-            .stu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; border: 1px solid #000; padding: 8px 12px; margin-bottom: 10px; }
-            .field { display: flex; align-items: baseline; margin-bottom: 5px; }
-            .lbl { font-weight: 700; font-size: 10px; text-transform: uppercase; width: 150px; flex-shrink: 0; color: #333; }
-            .val { font-weight: 600; font-size: 11px; border-bottom: 1px dotted #999; flex: 1; padding-left: 6px; min-height: 15px; }
+            .stu-grid { display: grid; grid-template-columns: 56% 44%; gap: 12px 16px; border: 1px solid #000; padding: 12px 16px; margin-bottom: 16px; }
+            .field { display: flex; align-items: flex-start; }
+            .lbl { font-weight: 700; font-size: 10px; text-transform: uppercase; width: 140px; flex-shrink: 0; color: #333; padding-top: 1px; }
+            .val-wrap { flex: 1; text-align: left; }
+            .val { font-weight: 700; font-size: 11px; border-bottom: 1px solid #555; padding-bottom: 1px; display: inline; color: #111; line-height: 1.4; }
+            .val.nowrap { white-space: nowrap; }
+            .val.small-nowrap { white-space: nowrap; font-size: 10px; }
 
             /* Table */
             table { width: 100%; border-collapse: collapse; margin-bottom: 10px; page-break-inside: avoid; font-size: 11px; }
@@ -226,26 +227,36 @@ const CheckGpaPage = () => {
             .sum-val { font-family: 'EB Garamond', serif; font-size: 20px; font-weight: 800; display: block; line-height: 1; }
             .sum-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #555; letter-spacing: 0.05em; display: block; margin-top: 2px; }
 
-            /* CGPA Summary Box */
-            .cgpa-summary { border: 1px solid #000; padding: 16px 12px; margin-bottom: 12px; text-align: center; width: 50%; margin-left: auto; margin-right: auto; }
-            .cgpa-val { font-family: 'EB Garamond', serif; font-size: 28px; font-weight: 800; color: #000; display: block; line-height: 1; margin-bottom: 4px; }
-            .cgpa-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #333; letter-spacing: 0.05em; }
+            /* CGPA & Percentage Box */
+            .cgpa-container { display: flex; gap: 10px; margin-bottom: 10px; }
+            .cgpa-box { border: 1px solid #000; padding: 16px 12px; text-align: center; flex: 1; }
+            .cgpa-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #333; letter-spacing: 0.05em; margin-bottom: 6px; }
+            .cgpa-value { font-family: 'EB Garamond', serif; font-size: 28px; font-weight: 800; color: #000; line-height: 1; }
 
             /* Footer */
-            .footer { margin-top: 12px; border-top: 1px solid #000; padding-top: 8px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 12px; border-top: 1px solid #000; padding-top: 10px; }
             .footer-left { display: flex; flex-direction: column; gap: 4px; }
-            .footer-date { font-size: 10px; font-weight: 600; }
-            .footer-note { font-size: 10px; font-weight: 400; font-style: italic; color: #333; line-height: 1.3; }
-            .footer-stamp { text-align: center; }
-            .stamp-text { font-family: 'EB Garamond', serif; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border: 1.5px solid #000; padding: 4px 18px; display: inline-block; }
+            .footer-date { font-size: 11px; font-weight: 700; }
+            .footer-right { max-width: 60%; }
+            .highlight-note {
+              background-color: #fef2f2;
+              border: 1px solid #fca5a5;
+              padding: 8px 12px;
+              font-size: 9px;
+              color: #991b1b;
+              text-align: left;
+              line-height: 1.4;
+              border-radius: 4px;
+            }
+            .highlight-note strong { font-weight: 800; font-size: 10px; }
 
             @media print {
               html, body { background: #fff; }
               .cmm-wrap { border: 2.5px solid #000 !important; }
               .cmm-inner { border: 1px solid #000 !important; }
               table { page-break-inside: avoid; }
-              .cgpa-summary { page-break-inside: avoid; }
-              .footer-note { white-space: pre-wrap; }
+              .cgpa-box { page-break-inside: avoid; }
+              .highlight-note { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
           </style>
         </head>
@@ -263,12 +274,12 @@ const CheckGpaPage = () => {
 
               <!-- Student Details -->
               <div class="stu-grid">
-                <div class="field"><span class="lbl">Student Name</span><span class="val">${studentName || '-'}</span></div>
-                <div class="field"><span class="lbl">Hall Ticket No</span><span class="val">${studentRoll || '-'}</span></div>
-                <div class="field"><span class="lbl">College Name</span><span class="val">${COLLEGE_NAME}</span></div>
-                <div class="field"><span class="lbl">Month &amp; Year of Exam</span><span class="val">${examMonthYear}</span></div>
-                <div class="field"><span class="lbl">Year of Admission</span><span class="val">20${studentRoll.substring(1, 3) || '__'}</span></div>
-                <div class="field"><span class="lbl">Class Awarded</span><span class="val">${classAwarded}</span></div>
+                <div class="field"><span class="lbl">Student Name</span><div class="val-wrap"><span class="val">${studentName || '-'}</span></div></div>
+                <div class="field"><span class="lbl">Hall Ticket No</span><div class="val-wrap"><span class="val nowrap">${studentRoll || '-'}</span></div></div>
+                <div class="field"><span class="lbl">College Name</span><div class="val-wrap"><span class="val small-nowrap">${COLLEGE_NAME}</span></div></div>
+                <div class="field"><span class="lbl">Class Awarded</span><div class="val-wrap"><span class="val">${classAwarded}</span></div></div>
+                <div class="field"><span class="lbl">Year of Admission</span><div class="val-wrap"><span class="val">20${studentRoll.substring(1, 3) || '__'}</span></div></div>
+                <div></div> <!-- Spacer for exact 2-column layout -->
               </div>
 
               <!-- Semester-wise Table -->
@@ -283,33 +294,32 @@ const CheckGpaPage = () => {
                 </thead>
                 <tbody>
                   ${semTableRows || '<tr><td colspan="4" class="center">No semester data available</td></tr>'}
-                  <tr style="background:#f0f0f0">
-                    <td class="bold">Total</td>
-                    <td class="center bold">${totalCreditsAll}</td>
-                    <td class="center bold">${totalGradePoints}</td>
-                    <td class="center bold">—</td>
-                  </tr>
                 </tbody>
               </table>
 
               <!-- CGPA Summary -->
-              <div class="cgpa-summary">
-                <span class="cgpa-val">${finalCGPA !== null ? finalCGPA.toFixed(2) : 'N/A'}</span>
-                <span class="cgpa-lbl">CGPA</span>
+              <div class="cgpa-container">
+                <div class="cgpa-box">
+                  <div class="cgpa-label">CGPA</div>
+                  <div class="cgpa-value">${finalCGPA !== null ? finalCGPA.toFixed(2) : 'N/A'}</div>
+                </div>
+                <div class="cgpa-box">
+                  <div class="cgpa-label">PERCENTAGE</div>
+                  <div class="cgpa-value">${finalCGPA !== null ? (finalCGPA * 9.5).toFixed(2) + '%' : 'N/A'}</div>
+                </div>
               </div>
 
               <!-- Footer -->
               <div class="footer">
                 <div class="footer-left">
                   <div class="footer-date">Date of Issue: ${currentDate}</div>
-                  <div class="footer-note">
-              <strong>Note:</strong><br />
-              This document is electronically generated and does not require a signature.<br />
-              It is intended for reference purposes only and is not valid for official use.
-              </div>
                 </div>
-                <div class="footer-stamp">
-                  <div class="stamp-text">UNAUTHORIZED CMM</div>
+                <div class="footer-right">
+                  <div class="highlight-note">
+                    <strong>Note:</strong><br/>
+                    This document is electronically generated and does not require a signature.<br/>
+                    It is intended for reference purposes only and is not valid for official use.
+                  </div>
                 </div>
               </div>
 
@@ -343,7 +353,7 @@ const CheckGpaPage = () => {
   return (
     <div className="w-full space-y-8 animate-fade-in relative">
       <div className="absolute top-0 right-0 w-80 h-80 bg-blue-100/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
-      
+
       <div className="text-center relative">
         <h1 className="heading-premium inline-block relative">
           Check CGPA
@@ -393,21 +403,29 @@ const CheckGpaPage = () => {
 
       {cgpa && studentInfo && (
         <div ref={tableRef} className="premium-card mt-8 animate-fade-in border-indigo-100/50 bg-gradient-to-br from-white to-indigo-50/30">
-          {!isMobile ? (
-            <div className="flex justify-end mb-6 print-hidden">
+          {/* Action Bar */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 border-b border-slate-100 pb-6 gap-6 sm:gap-0">
+            <div className="flex items-center sm:items-center gap-3 sm:gap-5 w-full sm:w-auto print-hidden">
+              <img src={UNIVERSITY_LOGO} alt="University Logo" className="w-12 h-12 sm:w-14 sm:h-14 object-contain shadow-sm rounded-full bg-white p-1 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <h3 className="font-extrabold text-slate-800 text-[16px] sm:text-xl leading-[1.3] sm:leading-tight tracking-tight uppercase whitespace-normal break-words" style={{ overflowWrap: "anywhere" }}>{UNIVERSITY_NAME}</h3>
+                <p className="text-[10px] sm:text-xs text-indigo-600 font-bold uppercase tracking-widest mt-1 opacity-80 whitespace-normal break-words">{COLLEGE_NAME}</p>
+              </div>
+            </div>
+            {!isMobile ? (
               <button
                 onClick={handlePrint}
-                className="btn-secondary print-btn text-sm px-5 py-2.5"
-                disabled={isMobile}
+                className="btn-primary print-btn text-sm px-6 py-3 flex items-center gap-2.5 shadow-indigo-200/50 shadow-lg hover:shadow-indigo-300 transition-all hover:-translate-y-0.5 print-hidden"
               >
-                📄 Print CMM Report
+                <span className="text-lg">🎓</span>
+                Download CMM Report
               </button>
-            </div>
-          ) : (
-            <div className="mb-6 px-3 py-2 bg-yellow-100 border border-yellow-200 text-yellow-800 rounded-lg text-sm">
-              Printing is available only on desktop or laptop screens for better formatting.
-            </div>
-          )}
+            ) : (
+              <div className="text-xs text-amber-600 font-semibold bg-amber-50 px-3 py-2 rounded-lg border border-amber-200 print-hidden">
+                Printing is available only on desktop for better formatting.
+              </div>
+            )}
+          </div>
           <div className="text-center space-y-8">
             <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100 print-hidden">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
@@ -425,7 +443,7 @@ const CheckGpaPage = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-gradient-to-br from-indigo-600 via-blue-700 to-indigo-800 rounded-3xl p-10 sm:p-12 text-white shadow-xl mx-auto max-w-3xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl transform translate-x-10 -translate-y-10 group-hover:bg-white/20 transition-all duration-700"></div>
               <div className="relative z-10">

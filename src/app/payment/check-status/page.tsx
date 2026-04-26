@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 
@@ -104,6 +104,7 @@ export default function CheckPaymentStatus() {
     const [records, setRecords] = useState<PaymentRecord[]>([]);
     const [searched, setSearched] = useState(false);
     const [tuitionPaidAmounts, setTuitionPaidAmounts] = useState<{ [key: string]: number }>({});
+    const [tuitionTotalFees, setTuitionTotalFees] = useState<{ [key: string]: number }>({});
 
     // Reupload State
     const [activeReuploadId, setActiveReuploadId] = useState<string | null>(null);
@@ -153,14 +154,36 @@ export default function CheckPaymentStatus() {
                 // Calculate paid amounts for tuition fees
                 if (category === 'tuition') {
                     const paidAmounts: { [key: string]: number } = {};
+                    const totalFeesAmounts: { [key: string]: number } = {};
                     for (const record of docsData) {
                         if (record.yearOfFee) {
                             const key = `${record.rollNumber}_${record.yearOfFee}`;
                             const paid = await calculateTuitionPaidAmount(record.rollNumber, record.yearOfFee);
                             paidAmounts[key] = paid;
+
+                            const match = record.rollNumber.match(/^([YL]\d{2})([A-Z]{2,6})(\d+)$/i);
+                            if (match) {
+                                const batch = match[1].toUpperCase();
+                                const rollUpper = record.rollNumber.toUpperCase();
+                                let courseType = 'BTech';
+                                if (rollUpper.includes('MTH')) {
+                                    courseType = 'MTech';
+                                } else if (rollUpper.includes('CSE') || rollUpper.includes('ECE') || rollUpper.includes('AIML')) {
+                                    courseType = 'BTech';
+                                }
+
+                                const classDoc = await getDoc(doc(db, `classes/${courseType}/batches/${batch}`));
+                                if (classDoc.exists()) {
+                                    const tuitionData = classDoc.data()?.tuitionFees || {};
+                                    totalFeesAmounts[key] = tuitionData[`year${record.yearOfFee}`] || 40500;
+                                } else {
+                                    totalFeesAmounts[key] = 40500;
+                                }
+                            }
                         }
                     }
                     setTuitionPaidAmounts(paidAmounts);
+                    setTuitionTotalFees(totalFeesAmounts);
                 }
             }
         } catch (error) {
@@ -367,7 +390,7 @@ export default function CheckPaymentStatus() {
                                                     <div className="space-y-2">
                                                         <div className="flex justify-between items-center text-xs">
                                                             <span className="text-indigo-700 font-semibold">Total Fee:</span>
-                                                            <span className="font-bold text-indigo-900">₹ 40,500</span>
+                                                            <span className="font-bold text-indigo-900">₹ {(tuitionTotalFees[`${rec.rollNumber}_${rec.yearOfFee}`] || 40500).toLocaleString('en-IN')}</span>
                                                         </div>
                                                         <div className="flex justify-between items-center text-xs">
                                                             <span className="text-indigo-700 font-semibold">Paid Amount:</span>
@@ -375,7 +398,7 @@ export default function CheckPaymentStatus() {
                                                         </div>
                                                         <div className="flex justify-between items-center text-xs">
                                                             <span className="text-indigo-700 font-semibold">Due Amount:</span>
-                                                            <span className="font-bold text-indigo-900">₹ {Math.max(0, 40500 - (tuitionPaidAmounts[`${rec.rollNumber}_${rec.yearOfFee}`] || 0)).toLocaleString('en-IN')}</span>
+                                                            <span className="font-bold text-indigo-900">₹ {Math.max(0, (tuitionTotalFees[`${rec.rollNumber}_${rec.yearOfFee}`] || 40500) - (tuitionPaidAmounts[`${rec.rollNumber}_${rec.yearOfFee}`] || 0)).toLocaleString('en-IN')}</span>
                                                         </div>
                                                     </div>
                                                 </div>

@@ -130,10 +130,6 @@ async function performBulkScrape(
   const semMatch = (resultType || '').match(/-Sem(\d+)/i);
   const semesterKey = meta?.semester ? `SEM${meta.semester}` : (semMatch ? `SEM${semMatch[1]}` : 'SEM1');
 
-  // Map MTech branch alias back to CSE for curriculum matching
-  if (courseType === 'MTech' && department === 'MTH') {
-    department = 'CSE';
-  }
 
   const regulation = await getRegulationForRollNumber(startRoll, courseType);
   const subjectMaxMarks = regulation ? await getCurriculumMaxMarks(courseType, regulation, department, semesterKey) : {};
@@ -204,7 +200,7 @@ async function saveStudentResultAdmin(
   
   const normalizedRoll = (studentData.roll || '').trim().toUpperCase();
   studentData.roll = normalizedRoll;
-  console.log(`[saveStudentResultAdmin] Normalized Roll Number: ${normalizedRoll}`);
+
 
   const studentRef = adminDb.collection('students').doc(normalizedRoll);
   const studentSnap = await studentRef.get();
@@ -292,7 +288,7 @@ async function saveStudentResultAdmin(
       }
     }
 
-    console.log("Saving result for:", studentData.roll);
+
 
     let semTotalMarks = 0;
     let semTotalMaxMarks = 0;

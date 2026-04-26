@@ -7,101 +7,7 @@ import { safeTrim } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-// ── Module-level cache (survives across requests in the same server process) ──
-const curriculumCache: Record<string, { data: CurriculumEntry[], timestamp: number }> = {};
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-interface CurriculumEntry {
-  /** Normalized (UPPER) subject code */
-  code: string;
-  credits: number;
-  maxMarks: number;
-  subjectName: string;
-  order: number;
-  semKey: string;
-}
-
-/**
- * Fetch all semester curriculum docs for a given regulation/department in parallel,
- * then build a flat map: normalizedSubjectCode → CurriculumEntry.
- * Results are cached at module level to avoid redundant fetches across requests.
- */
-async function buildCurriculumMap(
-  courseType: string,
-  regulation: string,
-  department: string
-): Promise<Map<string, CurriculumEntry>> {
-  const map = new Map<string, CurriculumEntry>();
-  if (!regulation || !department) return map;
-
-  const regKey = `${courseType}_${regulation.toUpperCase()}`;
-  const deptKey = department.toUpperCase();
-
-  // Fetch semesters in parallel (BTech: 8, MTech: 4)
-  const numSems = courseType === 'MTech' ? 4 : 8;
-  const semKeys = Array.from({ length: numSems }, (_, i) => `SEM${i + 1}`);
-
-  await Promise.all(
-    semKeys.map(async (semKey) => {
-      const cacheKey = `${regKey}-${deptKey}-${semKey}`;
-
-      if (!curriculumCache[cacheKey] || Date.now() - curriculumCache[cacheKey].timestamp > CACHE_TTL) {
-        const curRef = doc(db, 'curriculum', regKey, deptKey, semKey);
-        console.log(`[Curriculum] Fetching path: curriculum/${regKey}/${deptKey}/${semKey}`);
-        
-        const snap = await getDoc(curRef);
-        let subjectInfo: any[] = [];
-        
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.Subjects && Array.isArray(data.Subjects)) {
-            subjectInfo = data.Subjects;
-          } else if (data.subjects && Array.isArray(data.subjects)) {
-            subjectInfo = data.subjects;
-          } else {
-            // Document might be a map of: subjectCode -> { credits, maxMarks, ... }
-            for (const [key, val] of Object.entries(data)) {
-              if (val && typeof val === 'object') {
-                subjectInfo.push({
-                  ...(val as any),
-                  code: (val as any).code || (val as any).subjectCode || key
-                });
-              }
-            }
-          }
-        }
-        
-        console.log(`[Curriculum] Path curriculum/${regKey}/${deptKey}/${semKey} found ${subjectInfo.length} subjects.`);
-        
-        curriculumCache[cacheKey] = {
-          data: subjectInfo,
-          timestamp: Date.now(),
-        };
-      }
-
-      const subjects: any[] = curriculumCache[cacheKey].data;
-      subjects.forEach((s: any, idx: number) => {
-        const rawCode = (s.code || s.subjectCode || s.subject_code || '').toString().trim().toUpperCase();
-        if (!rawCode) return;
-
-        const rawMax = s.maxMarks ?? s.max_marks ?? s.MaxMarks ?? null;
-        const maxMarks = rawMax !== null && Number(rawMax) > 0 ? Number(rawMax) : null;
-        const orderValue = Number(s.order ?? s.Order ?? (idx + 1));
-
-        map.set(rawCode, {
-          code: rawCode,
-          credits: Number(s.credit || s.Credit || s.credits || 0),
-          maxMarks: maxMarks ?? 100,
-          subjectName: s.subjectName || s.name || s.description || '',
-          order: Number.isNaN(orderValue) ? idx + 1 : orderValue,
-          semKey: semKey.trim().toUpperCase(),
-        });
-      });
-    })
-  );
-
-  return map;
-}
+import { buildCurriculumMap } from '../../../lib/curriculumHelper';
 
 export async function POST(req: NextRequest) {
   try {
@@ -120,19 +26,10 @@ export async function POST(req: NextRequest) {
 
     const studentData = studentSnap.data();
     const subjectResults = studentData.subjectResults || {};
-    const { batch, branch: parsedBranch, courseType: parsedCourseType } = parseRollNumber(rollNo);
+    const { branch: parsedBranch, courseType: parsedCourseType } = parseRollNumber(rollNo);
     // Use the explicitly saved branch from the student document if available, fallback to regex parsed branch
     let department = (studentData.branch || parsedBranch || '').trim().toUpperCase();
     const courseType: string = parsedCourseType || 'BTech'; // Override saved courseType with robust detection
-
-    console.log(`[Results Detection] Roll Number: ${rollNo}`);
-    console.log(`[Results Detection] Detected Branch: ${department}`);
-    console.log(`[Results Detection] Detected CourseType: ${courseType}`);
-
-    // Map MTech branch alias back to CSE for curriculum matching
-    if (courseType === 'MTech' && (department === 'MTH' || department === 'CSE_MTH')) {
-      department = 'CSE';
-    }
 
     const regulation = await getRegulationForRollNumber(rollNo, courseType);
 
@@ -156,8 +53,6 @@ export async function POST(req: NextRequest) {
     for (const [subCode, subInfo] of Object.entries(subjectResults) as any[]) {
       const normalizedCode = subCode.trim().toUpperCase();
       const cur = curriculumMap.get(normalizedCode);
-
-      console.log(`[Curriculum] Matched Subject [${normalizedCode}]:`, cur || 'NOT FOUND');
 
       if (!cur) {
         // Subject not in curriculum — use defaults

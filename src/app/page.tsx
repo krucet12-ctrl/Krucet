@@ -77,17 +77,26 @@ const Index = () => {
                 className="w-full h-full object-contain filter drop-shadow-lg"
               />
             </div>
-            <div className="text-center space-y-2">
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold font-display tracking-tight text-white drop-shadow-xl bg-clip-text text-transparent bg-gradient-to-r from-white to-indigo-200">
+            <div className="text-center flex flex-col items-center justify-center">
+              <h1 className="text-4xl sm:text-5xl md:text-[64px] font-extrabold font-display tracking-tight text-white drop-shadow-lg mb-3 leading-none">
                 {univName}
               </h1>
-              <h2 className="text-xl sm:text-2xl font-bold text-indigo-200 drop-shadow-md">
+              <h2 className="text-xl sm:text-2xl md:text-[28px] font-bold text-indigo-100 drop-shadow-sm mb-2 opacity-95">
                 {colName}
               </h2>
-              <p className="text-indigo-300 font-medium">{address}</p>
+              <p className="text-sm md:text-base lg:text-[17px] text-indigo-300 font-medium mb-10">
+                {address}
+              </p>
+            
+              {/* Added Portal Branding Title */}
+              <div className="w-full max-w-2xl mx-auto">
+                <h2 className="text-3xl sm:text-4xl md:text-[42px] font-bold text-white tracking-wide text-center drop-shadow-md leading-tight">
+                  Student Assist Portal
+                </h2>
+              </div>
             </div>
           </div>
-          <p className="text-lg md:text-xl text-indigo-100/90 max-w-4xl mx-auto font-medium leading-relaxed z-10 relative drop-shadow mt-4">
+          <p className="text-base md:text-lg text-indigo-200/80 max-w-4xl mx-auto font-medium leading-relaxed z-10 relative drop-shadow mt-6">
             {description}
           </p>
         </div>

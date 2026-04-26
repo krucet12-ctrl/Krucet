@@ -149,9 +149,6 @@ export const getCurriculumMaxMarks = async (
     const semName = semester.toUpperCase();
     const builtPath = `curriculum/${docName}/${branchName}/${semName}`;
     
-    console.log(`[getCurriculumMaxMarks] CourseType: ${courseType}, Regulation: ${regulation}`);
-    console.log(`[getCurriculumMaxMarks] Built curriculum path: ${builtPath}`);
-
     const curDoc = doc(db, 'curriculum', docName, branchName, semName);
     const curSnap = await getDoc(curDoc);
 
@@ -174,15 +171,12 @@ export const getCurriculumMaxMarks = async (
         const targetData = matchedSubject || subject;
         const maxMarks = Number(targetData.maxMarks || targetData.max_marks || targetData.maxmarks || 100);
         const credits = Number(targetData.credit || targetData.credits || 0);
-
         result[code] = {
           maxMarks: Number.isNaN(maxMarks) ? 100 : maxMarks,
           credits: Number.isNaN(credits) ? 0 : credits
         };
-        console.log(`[getCurriculumMaxMarks] Subject code lookup: ${code} - Found maxMarks: ${result[code].maxMarks}, credits: ${result[code].credits}`);
       }
-    } else {
-      console.log(`[getCurriculumMaxMarks] No document found at built curriculum path: ${builtPath}`);
+      // No curriculum document found
     }
   } catch (error) {
     console.error('Error getting curriculum max marks:', error);
@@ -217,7 +211,6 @@ export const saveStudentResult = async (
 
           const subjectData = subjectMaxMarks[normalizeSubjectCode(subCode)] || { maxMarks: 100, credits: 0 };
           const maxMarks = subjectData.maxMarks;
-          const credits = subjectData.credits;
 
           const computed = computeResultFromMarks(newSub.intMarks, newSub.extMarks, maxMarks);
 
@@ -261,7 +254,6 @@ export const saveStudentResult = async (
       });
     } else {
       // Document doesn't exist, create it.
-      console.warn("Student not found");
       
       let totalMarks = 0;
       let totalMaxMarks = 0;
@@ -434,27 +426,23 @@ export const convertParsedResultToStudentData = (
 
   const subjectResults: Record<string, SubjectResult> = {};
 
-  parsedResult.subjects.forEach(subject => {
-    const code = normalizeSubjectCode(subject.subCode);
-    if (!code) return;
+    parsedResult.subjects.forEach(subject => {
+      const code = normalizeSubjectCode(subject.subCode);
+      if (!code) return;
 
-    const subjectData = subjectMaxMarks[normalizeSubjectCode(code)] || { maxMarks: 100, credits: 0 };
-    const maxMarks = subjectData.maxMarks;
-    const credits = subjectData.credits;
+      const subjectData = subjectMaxMarks[normalizeSubjectCode(code)] || { maxMarks: 100, credits: 0 };
+      const maxMarks = subjectData.maxMarks;
+      const credits = subjectData.credits;
 
-    if (!subjectData) {
-      console.warn(`Curriculum data missing for subject ${code}. Assuming maxMarks 100.`);
-    }
+      const computed = computeResultFromMarks(subject.intMarks, subject.extMarks, maxMarks);
 
-    const computed = computeResultFromMarks(subject.intMarks, subject.extMarks, maxMarks);
-
-    subjectResults[code] = {
-      subjectName: subject.subjectName || '',
-      ...computed,
-      attempts: 1, // Initialize attempts to 1 for a new scrape
-      credits
-    };
-  });
+      subjectResults[code] = {
+        subjectName: subject.subjectName || '',
+        ...computed,
+        attempts: 1, // Initialize attempts to 1 for a new scrape
+        credits
+      };
+    });
 
   const studentData = {
     roll: parsedResult.studentInfo.rollNo,
