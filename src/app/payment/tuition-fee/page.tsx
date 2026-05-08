@@ -12,6 +12,7 @@ export default function TuitionFeePage() {
     const [amount, setAmount] = useState('');
     const [duNumber, setDuNumber] = useState('');
     const [paymentProofLink, setPaymentProofLink] = useState('');
+    const [phoneNumber, setPhoneNumber] = useState('');
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [uploading, setUploading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -53,6 +54,12 @@ export default function TuitionFeePage() {
             }
         }
 
+        if (!safeTrim(phoneNumber)) {
+            newErrors.phoneNumber = 'Phone number is required';
+        } else if (!/^\d{10}$/.test(phoneNumber)) {
+            newErrors.phoneNumber = 'Invalid phone number format';
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -72,7 +79,8 @@ export default function TuitionFeePage() {
                 yearOfFee,
                 amount: parseFloat(amount),
                 duNumber,
-                paymentProofLink
+                paymentProofLink,
+                phoneNumber
             };
 
             const response = await fetch('/api/payment/tuition-fee', {
@@ -91,6 +99,7 @@ export default function TuitionFeePage() {
                 setAmount('');
                 setDuNumber('');
                 setPaymentProofLink('');
+                setPhoneNumber('');
             } else {
                 setMessage({ type: 'error', text: data.error || 'Failed to submit payment proof' });
             }
@@ -343,6 +352,30 @@ export default function TuitionFeePage() {
                         <p className="mt-2 text-xs text-gray-600">
                             ⚠️ Please ensure your file access is set to "Anyone with the link", otherwise your payment will not be verified.
                         </p>
+                    </div>
+
+                    {/* Phone Number */}
+                    <div>
+                        <label htmlFor="phoneNumber" className="label-premium">
+                            Phone Number *
+                        </label>
+                        <input
+                            type="text"
+                            id="phoneNumber"
+                            autoComplete="off"
+                            value={phoneNumber}
+                            onChange={(e) => setPhoneNumber(e.target.value)}
+                            placeholder="Enter your phone number"
+                            className="input-class"
+                        />
+                        {errors.phoneNumber && (
+                            <p className="mt-1 text-xs text-red-600 flex items-center">
+                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                {errors.phoneNumber}
+                            </p>
+                        )}
                     </div>
                     </div>
                 </div>

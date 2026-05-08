@@ -4,7 +4,7 @@ import { getFirestore, Firestore, connectFirestoreEmulator, enableNetwork } from
 import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+
 const firebaseConfig = {
   apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain:        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -15,18 +15,18 @@ const firebaseConfig = {
   measurementId:     process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// ─── Singleton Initialization ─────────────────────────────────────────────────
+
 const app: FirebaseApp = getApps().length === 0
   ? initializeApp(firebaseConfig)
   : getApp();
 
-// ─── Services ─────────────────────────────────────────────────────────────────
+
 const auth: Auth             = getAuth(app);
 const db: Firestore          = getFirestore(app);
 const rtdb: Database         = getDatabase(app);
 const storage: FirebaseStorage = getStorage(app);
 
-// ─── Emulator (Dev Only) ──────────────────────────────────────────────────────
+
 if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIRESTORE_EMULATOR === 'true') {
   try {
     connectFirestoreEmulator(db, 'localhost', 8080);
@@ -35,7 +35,6 @@ if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIREST
   }
 }
 
-// ─── Client-side Validation (non-blocking warn) ───────────────────────────────
 if (typeof window !== 'undefined') {
   const REQUIRED = [
     'NEXT_PUBLIC_FIREBASE_API_KEY',
@@ -49,7 +48,6 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// ─── Connectivity Helper ──────────────────────────────────────────────────────
 export const checkFirebaseConnection = async (): Promise<boolean> => {
   try {
     await enableNetwork(db);

@@ -24,6 +24,7 @@ interface Payment {
     // Rejection specific
     rejectionReason?: string;
     rejectionComment?: string;
+    phoneNumber?: string;
 }
 
 export default function PaymentManagement() {

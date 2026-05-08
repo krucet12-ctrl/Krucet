@@ -13,6 +13,7 @@ export default function ExamFeePage() {
     const [amount, setAmount] = useState('');
     const [duNumber, setDuNumber] = useState('');
     const [paymentProofLink, setPaymentProofLink] = useState('');
+    const [phoneNumber, setPhoneNumber] = useState('');
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [uploading, setUploading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -58,6 +59,12 @@ export default function ExamFeePage() {
             }
         }
 
+        if (!safeTrim(phoneNumber)) {
+            newErrors.phoneNumber = 'Phone number is required';
+        } else if (!/^\d{10}$/.test(phoneNumber)) {
+            newErrors.phoneNumber = 'Invalid phone number format';
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -78,7 +85,8 @@ export default function ExamFeePage() {
                 feeType,
                 amount: parseFloat(amount),
                 duNumber,
-                paymentProofLink
+                paymentProofLink,
+                phoneNumber
             };
 
             const response = await fetch('/api/payment/exam-fee', {
@@ -98,6 +106,7 @@ export default function ExamFeePage() {
                 setAmount('');
                 setDuNumber('');
                 setPaymentProofLink('');
+                setPhoneNumber('');
             } else {
                 setMessage({ type: 'error', text: data.error || 'Failed to submit payment proof' });
             }
@@ -377,6 +386,24 @@ export default function ExamFeePage() {
                             <p className="mt-2 text-xs text-gray-600">
                                 ⚠️ Please ensure your file access is set to "Anyone with the link", otherwise your payment will not be verified.
                             </p>
+                        </div>
+
+                        {/* Phone Number */}
+                        <div className="flex gap-4">
+                            <input
+                                type="text"
+                                placeholder="Enter your DU number"
+                                value={duNumber}
+                                onChange={(e) => setDuNumber(e.target.value)}
+                                className="input-class"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Enter your phone number"
+                                value={phoneNumber}
+                                onChange={(e) => setPhoneNumber(e.target.value)}
+                                className="input-class"
+                            />
                         </div>
                     </div>
 
