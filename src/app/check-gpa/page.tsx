@@ -36,7 +36,7 @@ const CheckGpaPage = () => {
 
   const validateRollNumberFormat = (rollNo: string): boolean => {
     if (!rollNo || typeof rollNo !== 'string' || safeTrim(rollNo) === '') return false;
-    const format = /^[A-Z]\d{2}[A-Z]+\d{3}\d{3}$/;
+    const format = /^[A-Z]\d{2}[A-Z]+\d{3}\d{3}$/i;
     return format.test(safeTrim(rollNo));
   };
 
