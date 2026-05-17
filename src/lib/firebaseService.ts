@@ -243,11 +243,20 @@ export const saveStudentResult = async (
       }
       const SGPA = totalCredits > 0 ? weightedGradePoints / totalCredits : 0;
 
+      // Add semester to subjectResults
+      const globalSubjectResults = existingData.subjectResults || {};
+      for (const subCode in updatedSubjects) {
+        if (globalSubjectResults[subCode]) {
+          globalSubjectResults[subCode].semester = `sem${meta?.semester}`;
+        }
+      }
+
       // Update Firestore
       await updateDoc(studentRef, {
+        subjectResults: { ...globalSubjectResults, ...updatedSubjects }, // Merge new/updated subjects into global map
         [`semesterResults.sem${meta?.semester}`]: {
           ...semesterData,
-          subjects: updatedSubjects,
+          subjectCodes: Object.keys(updatedSubjects),
           SGPA,
           lastUpdated: new Date().toISOString(),
         },
@@ -265,16 +274,20 @@ export const saveStudentResult = async (
         }
       }
       
-      const resultKey = studentData.resultType || 'Unknown_Result';
+      const resultKey = `sem${meta?.semester || '1'}`; // Standardize key instead of Unknown_Result
       const newSemesterResult = {
         semester: meta?.semester || '',
         scrapeType: meta?.scrapeType || '',
         marks: totalMarks,
         maxMarks: totalMaxMarks,
         SGPA: 0,
-        subjects: studentData.subjectResults,
+        subjectCodes: Object.keys(studentData.subjectResults),
         uploadDate: new Date().toISOString()
       };
+
+      for (const subCode in studentData.subjectResults) {
+        studentData.subjectResults[subCode].semester = resultKey;
+      }
 
       await setDoc(studentRef, {
         ...studentData,

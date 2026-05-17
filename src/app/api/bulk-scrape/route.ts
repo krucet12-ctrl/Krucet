@@ -79,23 +79,18 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Start scraping in background
-    setTimeout(async () => {
-      try {
-        await performBulkScrape("", startRoll, endRoll, rsurl, resultType, {
-          courseType: ctField || '',
-          batch: batchField || '',
-          semester: semField || '',
-          scrapeType: scrapeTypeField || '',
-        });
-      } catch (error: unknown) {
-        console.error('Background scraping error:', error);
-      }
-    }, 100);
+    // Await the entire scraping process to ensure no premature termination
+    const summary = await performBulkScrape("", startRoll, endRoll, rsurl, resultType, {
+      courseType: ctField || '',
+      batch: batchField || '',
+      semester: semField || '',
+      scrapeType: scrapeTypeField || '',
+    });
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Bulk scraping job started successfully' 
+      message: 'Bulk scraping job completed safely',
+      summary
     });
 
   } catch (error: unknown) {
@@ -141,10 +136,20 @@ async function performBulkScrape(
 
     // Process roll numbers in smaller parallel chunks to speed up while avoiding blocks
     const CHUNK_SIZE = 5; 
-    for (let i = 0; i < rollNumbers.length; i += CHUNK_SIZE) {
-      const chunk = rollNumbers.slice(i, i + CHUNK_SIZE);
-      
-      await Promise.all(chunk.map(async (rollNo) => {
+    let currentBatch = adminDb.batch();
+    let operationsInBatch = 0;
+    let successfullyUploaded = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    // Ensure every parsed student row is processed one by one safely
+    for (const rollNo of rollNumbers) {
+      let attempt = 0;
+      let success = false;
+      const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
+
+      while (attempt < MAX_ATTEMPTS && !success) {
+        attempt++;
         try {
           const url = process.env.RESULTS_URL || 'https://upiqpbank.com/kvrrms/home/getresults';
           const payload = new URLSearchParams({ hno: rollNo, rsurl });
@@ -154,10 +159,13 @@ async function performBulkScrape(
             body: payload.toString() 
           });
           
-          if (!response.ok) return;
+          if (!response.ok) {
+            throw new Error(`HTTP Error ${response.status}`);
+          }
 
           const html = await response.text();
           const parsedResult = parseResultHTML(html);
+          
           if (parsedResult) {
             let rollCourseType = 'BTech';
             try {
@@ -167,21 +175,65 @@ async function performBulkScrape(
               // fallback
             }
             const studentData = convertParsedResultToStudentData(parsedResult, resultType, subjectMaxMarks);
-            await saveStudentResultAdmin(studentData, subjectMaxMarks, { ...meta, courseType: rollCourseType } as any);
+            await saveStudentResultAdmin(studentData, subjectMaxMarks, { ...meta, courseType: rollCourseType } as any, currentBatch);
+            
             rollStatus[rollNo] = 'success';
+            operationsInBatch += 2; 
+            successfullyUploaded++;
+            success = true;
           } else {
+            // Skip only completely empty rows safely, do not retry
             rollStatus[rollNo] = 'error';
+            skipped++;
+            success = true;
           }
-        } catch {
-          rollStatus[rollNo] = 'error';
+        } catch (err) {
+          if (attempt >= MAX_ATTEMPTS) {
+            rollStatus[rollNo] = 'error';
+            failed++;
+            console.error(`Failed permanently for student ${rollNo}:`, err);
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // small delay before retry
+          }
         }
-      }));
+      }
 
-      // Small delay between chunks
-      if (i + CHUNK_SIZE < rollNumbers.length) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+      // Sequential batch commits: Wait for each batch to complete before starting the next
+      if (operationsInBatch >= 400) {
+        try {
+          await currentBatch.commit();
+          console.log(`[Bulk Scrape] Committed sequential batch of ${operationsInBatch} operations.`);
+        } catch (batchErr) {
+          console.error(`[Bulk Scrape] Batch commit failed:`, batchErr);
+        }
+        currentBatch = adminDb.batch();
+        operationsInBatch = 0;
       }
     }
+
+    // Commit any remaining operations in the final batch
+    if (operationsInBatch > 0) {
+      try {
+        await currentBatch.commit();
+        console.log(`[Bulk Scrape] Committed final batch of ${operationsInBatch} operations.`);
+      } catch (batchErr) {
+        console.error(`[Bulk Scrape] Final batch commit failed:`, batchErr);
+      }
+    }
+
+    console.log(`\n=== Upload Summary ===`);
+    console.log(`Total Parsed: ${rollNumbers.length}`);
+    console.log(`Uploaded Successfully: ${successfullyUploaded}`);
+    console.log(`Failed: ${failed}`);
+    console.log(`Skipped Empty Rows: ${skipped}`);
+    console.log(`======================\n`);
+
+    return {
+      totalParsed: rollNumbers.length,
+      uploadedSuccessfully: successfullyUploaded,
+      failed,
+      skippedEmptyRows: skipped
+    };
 
   } catch (error: unknown) {
     console.error('Bulk scrape error:', error);
@@ -192,7 +244,8 @@ async function performBulkScrape(
 async function saveStudentResultAdmin(
   studentData: StudentData, 
   subjectMaxMarks: Record<string, { maxMarks: number, credits: number }> = {},
-  meta?: { courseType: string; batch: string; semester: string; scrapeType: string }
+  meta?: { courseType: string; batch: string; semester: string; scrapeType: string },
+  batch?: FirebaseFirestore.WriteBatch
 ): Promise<void> {
   if (!adminDb) {
     throw new Error('Admin DB not initialized');
@@ -297,6 +350,9 @@ async function saveStudentResultAdmin(
 
     for (const subCode in updatedSemesterSubjects) {
       if (Object.prototype.hasOwnProperty.call(updatedSemesterSubjects, subCode)) {
+        if (updatedResults[subCode]) {
+          updatedResults[subCode].semester = semKey;
+        }
         const sub = updatedSemesterSubjects[subCode];
         semTotalMarks += sub.total || 0;
         
@@ -318,11 +374,15 @@ async function saveStudentResultAdmin(
       marks: semTotalMarks,
       maxMarks: semTotalMaxMarks,
       SGPA: Number(SGPA.toFixed(2)),
-      subjects: updatedSemesterSubjects,
+      subjectCodes: Object.keys(updatedSemesterSubjects),
       uploadDate: new Date().toISOString()
     };
+    // Cleanup old subjects map if present to free space
+    if ('subjects' in newSemesterResult) {
+      delete newSemesterResult.subjects;
+    }
 
-    await studentRef.update({
+    const updatePayload = {
       name: studentData.name,
       branch: studentData.branch,
       college: studentData.college,
@@ -333,7 +393,13 @@ async function saveStudentResultAdmin(
       resultType: studentData.resultType,
       courseType: meta?.courseType || 'BTech',
       lastUpdated: new Date().toISOString()
-    });
+    };
+
+    if (batch) {
+      batch.update(studentRef, updatePayload);
+    } else {
+      await studentRef.update(updatePayload);
+    }
 
   } else {
     // Document doesn't exist, create it.
@@ -367,23 +433,39 @@ async function saveStudentResultAdmin(
       marks: semTotalMarks,
       maxMarks: semTotalMaxMarks,
       SGPA: Number(SGPA.toFixed(2)),
-      subjects: studentData.subjectResults,
+      subjectCodes: Object.keys(studentData.subjectResults),
       uploadDate: new Date().toISOString()
     };
 
-    await studentRef.set({
+    // Add semester tag to all subjects
+    for (const subCode in studentData.subjectResults) {
+      studentData.subjectResults[subCode].semester = semKey;
+    }
+
+    const setPayload = {
       ...studentData,
       semesterResults: {
         [semKey]: newSemesterResult
       },
       resultType: studentData.resultType,
       lastUpdated: new Date().toISOString()
-    });
+    };
+
+    if (batch) {
+      batch.set(studentRef, setPayload);
+    } else {
+      await studentRef.set(setPayload);
+    }
   }
 
   // Invalidate precomputed CGPA
   try {
-    await adminDb.collection('cgpa').doc(studentData.roll).delete();
+    const cgpaRef = adminDb.collection('cgpa').doc(studentData.roll);
+    if (batch) {
+      batch.delete(cgpaRef);
+    } else {
+      await cgpaRef.delete();
+    }
   } catch {
     // ignore
   }

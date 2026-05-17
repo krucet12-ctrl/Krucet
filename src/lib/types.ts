@@ -10,6 +10,7 @@ export interface SubjectResult {
   status?: 'PASS' | 'FAIL';
   attempts: number;
   credits?: number;
+  semester?: string;
 }
 
 export interface StudentData {
@@ -68,7 +69,8 @@ export interface YearToRegulationMap {
 }
 
 export interface SemesterResult {
-  subjects: Record<string, SubjectResult>;
+  subjects?: Record<string, SubjectResult>;
+  subjectCodes?: string[];
   SGPA: number;
   lastUpdated: string;
 }

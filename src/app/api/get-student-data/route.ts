@@ -39,10 +39,17 @@ export async function POST(req: NextRequest) {
     const semesterResults = studentData.semesterResults || {};
     const fallbackSemKeyMap = new Map<string, string>();
     for (const [key, semObj] of Object.entries(semesterResults)) {
-      if (semObj && (semObj as Record<string, any>).subjects) {
+      if (semObj) {
         const normalizedSemKey = key.toUpperCase().replace(/\s+/g, '');
-        for (const subCode of Object.keys((semObj as Record<string, any>).subjects)) {
-          fallbackSemKeyMap.set(subCode.trim().toUpperCase(), normalizedSemKey);
+        const record = semObj as Record<string, any>;
+        if (record.subjectCodes && Array.isArray(record.subjectCodes)) {
+          for (const subCode of record.subjectCodes) {
+            fallbackSemKeyMap.set(subCode.trim().toUpperCase(), normalizedSemKey);
+          }
+        } else if (record.subjects) {
+          for (const subCode of Object.keys(record.subjects)) {
+            fallbackSemKeyMap.set(subCode.trim().toUpperCase(), normalizedSemKey);
+          }
         }
       }
     }
@@ -58,7 +65,7 @@ export async function POST(req: NextRequest) {
         // Subject not in curriculum — use defaults
       }
 
-      const semKey  = cur?.semKey      ?? (fallbackSemKeyMap.get(normalizedCode) || 'SEM1');
+      const semKey  = cur?.semKey ?? (subInfo.semester ? subInfo.semester.toUpperCase().replace(/\s+/g, '') : (fallbackSemKeyMap.get(normalizedCode) || 'SEM1'));
       const credits = cur?.credits     ?? Number(subInfo.credits || 0);
       const maxMarks = cur?.maxMarks   ?? Number(subInfo.maxMarks || 100);
       const subjectName = cur?.subjectName ?? '';
