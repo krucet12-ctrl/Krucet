@@ -70,38 +70,53 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    try {
-      parseRollNumber(startRoll);
-      parseRollNumber(endRoll);
-    } catch  {
-      return NextResponse.json({ 
-        error: 'Invalid roll number format. Expected format: Y22CSE279001' 
-      }, { status: 400 });
-    }
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const sendEvent = (event: string, data: any) => {
+          try {
+            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          } catch (e) {
+            console.error("Stream enqueue error:", e);
+          }
+        };
 
-    // Await the entire scraping process to ensure no premature termination
-    const summary = await performBulkScrape("", startRoll, endRoll, rsurl, resultType, {
-      courseType: ctField || '',
-      batch: batchField || '',
-      semester: semField || '',
-      scrapeType: scrapeTypeField || '',
+        try {
+          parseRollNumber(startRoll);
+          parseRollNumber(endRoll);
+        } catch {
+          sendEvent('error', { message: 'Invalid roll number format. Expected format: Y22CSE279001' });
+          controller.close();
+          return;
+        }
+
+        try {
+          const summary = await performBulkScrape("", startRoll, endRoll, rsurl, resultType, {
+            courseType: ctField || '',
+            batch: batchField || '',
+            semester: semField || '',
+            scrapeType: scrapeTypeField || '',
+          }, sendEvent);
+
+          sendEvent('complete', summary);
+        } catch (error: any) {
+          sendEvent('error', { message: error.message || 'Unknown error occurred' });
+        } finally {
+          controller.close();
+        }
+      }
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Bulk scraping job completed safely',
-      summary
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+      },
     });
 
   } catch (error: unknown) {
-    console.error('Bulk scrape error:', error);
-    
-    if (error instanceof Error && error.message?.includes('permission')) {
-      return NextResponse.json({ 
-        error: 'Firestore permission denied.' 
-      }, { status: 403 });
-    }
-    
+    console.error('Bulk scrape API error:', error);
     return NextResponse.json({ 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
     }, { status: 500 });
@@ -114,7 +129,8 @@ async function performBulkScrape(
   endRoll: string, 
   rsurl: string,
   resultType: string,
-  meta?: { courseType: string; batch: string; semester: string; scrapeType: string }
+  meta?: { courseType: string; batch: string; semester: string; scrapeType: string },
+  sendEvent?: (event: string, data: any) => void
 ) {
   const rollStatus: Record<string, 'pending' | 'success' | 'error'> = {};
 
@@ -142,8 +158,21 @@ async function performBulkScrape(
     let skipped = 0;
     let failed = 0;
 
+    const reportProgress = (currentRoll: string) => {
+      if (sendEvent) {
+        sendEvent('progress', {
+          total: rollNumbers.length,
+          currentRoll,
+          uploaded: successfullyUploaded,
+          failed,
+          skipped
+        });
+      }
+    };
+
     // Ensure every parsed student row is processed one by one safely
     for (const rollNo of rollNumbers) {
+      reportProgress(rollNo);
       let attempt = 0;
       let success = false;
       const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
@@ -227,6 +256,16 @@ async function performBulkScrape(
     console.log(`Failed: ${failed}`);
     console.log(`Skipped Empty Rows: ${skipped}`);
     console.log(`======================\n`);
+
+    if (sendEvent) {
+      sendEvent('progress', {
+        total: rollNumbers.length,
+        currentRoll: 'Done',
+        uploaded: successfullyUploaded,
+        failed,
+        skipped
+      });
+    }
 
     return {
       totalParsed: rollNumbers.length,

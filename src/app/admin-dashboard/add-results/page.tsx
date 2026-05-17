@@ -35,6 +35,18 @@ interface BatchResult {
   semesters: Record<string, SemesterData>;
 }
 
+interface ProgressState {
+  isActive: boolean;
+  currentRangeIndex: number;
+  totalRanges: number;
+  currentRoll: string;
+  uploaded: number;
+  failed: number;
+  skipped: number;
+  totalParsed: number;
+  timeTaken?: string;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getLateralPrefix = (batch: string) => {
@@ -353,6 +365,7 @@ function BulkScrapingTab() {
   const [bulkScraping, setBulkScraping] = useState(false);
   const [bulkError, setBulkError] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [progressState, setProgressState] = useState<ProgressState | null>(null);
 
   const semesterOptions = courseType === "BTech" ? [1, 2, 3, 4, 5, 6, 7, 8] : [1, 2, 3, 4];
 
@@ -439,21 +452,115 @@ function BulkScrapingTab() {
 
   const handleBulkScrape = async () => {
     setBulkScraping(true); setBulkError(""); setShowSuccess(false);
+    
+    const startTime = Date.now();
+    let totalUploaded = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    let totalParsed = 0;
+    
+    setProgressState({
+      isActive: true,
+      currentRangeIndex: 0,
+      totalRanges: validRanges.length,
+      currentRoll: "Starting...",
+      uploaded: 0,
+      failed: 0,
+      skipped: 0,
+      totalParsed: 0,
+    });
+
     let allSuccess = true;
     try {
-      for (const range of validRanges) {
-        const formData = new FormData();
-        formData.append("startRoll", range.start);
-        formData.append("endRoll", range.end);
-        formData.append("rsurl", rsurl);
-        formData.append("resultType", resultType);
-        formData.append("courseType", courseType);
-        formData.append("batch", selectedBatch);
-        formData.append("semester", selectedSemester);
-        formData.append("scrapeType", selectedType);
-        const res = await fetch("/api/bulk-scrape", { method: "POST", body: formData });
-        const data = await res.json();
-        if (!res.ok) { setBulkError(data.error || "Failed to start bulk scraping."); allSuccess = false; break; }
+      for (let i = 0; i < validRanges.length; i++) {
+        const range = validRanges[i];
+        
+        setProgressState(prev => prev ? { ...prev, currentRangeIndex: i } : null);
+
+        const payload = {
+          startRoll: range.start,
+          endRoll: range.end,
+          rsurl,
+          resultType,
+          courseType,
+          batch: selectedBatch,
+          semester: selectedSemester,
+          scrapeType: selectedType
+        };
+
+        const res = await fetch("/api/bulk-scrape", { 
+          method: "POST", 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+           let errorData;
+           try {
+             errorData = await res.json();
+           } catch {
+             errorData = {};
+           }
+           throw new Error(errorData.error || `HTTP Error ${res.status}`);
+        }
+
+        if (!res.body) throw new Error("No response body");
+        
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || ''; 
+          
+          for (const chunk of lines) {
+            const eventMatch = chunk.match(/event:\s*(.+)/);
+            const dataMatch = chunk.match(/data:\s*(.+)/);
+            
+            if (eventMatch && dataMatch) {
+              const event = eventMatch[1].trim();
+              const dataStr = dataMatch[1].trim();
+              
+              let data: any;
+              try {
+                data = JSON.parse(dataStr);
+              } catch (e) {
+                continue;
+              }
+
+              if (event === 'progress') {
+                setProgressState(prev => prev ? {
+                  ...prev,
+                  currentRoll: data.currentRoll,
+                  uploaded: totalUploaded + data.uploaded,
+                  failed: totalFailed + data.failed,
+                  skipped: totalSkipped + data.skipped,
+                } : null);
+              } else if (event === 'error') {
+                throw new Error(data.message || 'Error during scraping');
+              } else if (event === 'complete') {
+                totalUploaded += data.uploadedSuccessfully;
+                totalFailed += data.failed;
+                totalSkipped += data.skippedEmptyRows;
+                totalParsed += data.totalParsed;
+                
+                setProgressState(prev => prev ? {
+                  ...prev,
+                  uploaded: totalUploaded,
+                  failed: totalFailed,
+                  skipped: totalSkipped,
+                  totalParsed: totalParsed,
+                } : null);
+              }
+            }
+          }
+        }
       }
 
       if (allSuccess) {
@@ -474,10 +581,18 @@ function BulkScrapingTab() {
           resultType: typeLabel,
           createdAt: serverTimestamp(),
         });
+        
+        const timeTakenMs = Date.now() - startTime;
+        const mins = Math.floor(timeTakenMs / 60000);
+        const secs = Math.floor((timeTakenMs % 60000) / 1000);
+        const timeTaken = `${mins}m ${secs}s`;
+
+        setProgressState(prev => prev ? { ...prev, isActive: false, timeTaken } : null);
         setShowSuccess(true);
       }
     } catch (err) {
       setBulkError("Failed to start bulk scraping: " + (err instanceof Error ? err.message : String(err)));
+      setProgressState(prev => prev ? { ...prev, isActive: false } : null);
     } finally {
       setBulkScraping(false);
     }
@@ -643,6 +758,55 @@ function BulkScrapingTab() {
             <li><span className="font-bold">Active ranges:</span> {validRanges.length} out of {rollRanges.length}</li>
             <li><span className="font-bold">Result Type:</span> {resultType || "—"}</li>
           </ul>
+        </div>
+      )}
+
+      {/* Real-time Progress State */}
+      {progressState && (
+        <div className="bg-indigo-50/50 border border-indigo-200 rounded-2xl p-6 space-y-4 shadow-inner">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-extrabold text-indigo-900 flex items-center gap-2">
+              {progressState.isActive ? (
+                <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+              ) : (
+                <span className="text-green-500">✓</span>
+              )}
+              {progressState.isActive ? "Processing in Background..." : "Process Complete"}
+            </h3>
+            {progressState.isActive && (
+              <span className="text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded-full">
+                Range {progressState.currentRangeIndex + 1} of {progressState.totalRanges}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
+              <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Current Roll</p>
+              <p className="text-sm font-mono font-bold text-slate-700 truncate" title={progressState.currentRoll}>{progressState.currentRoll || "—"}</p>
+            </div>
+            <div className="bg-white p-3 rounded-xl border border-green-100 shadow-sm">
+              <p className="text-[10px] font-extrabold text-green-500 uppercase tracking-wider mb-1">Uploaded</p>
+              <p className="text-sm font-black text-green-600">{progressState.uploaded}</p>
+            </div>
+            <div className="bg-white p-3 rounded-xl border border-red-100 shadow-sm">
+              <p className="text-[10px] font-extrabold text-red-500 uppercase tracking-wider mb-1">Failed</p>
+              <p className="text-sm font-black text-red-600">{progressState.failed}</p>
+            </div>
+            <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-sm">
+              <p className="text-[10px] font-extrabold text-amber-500 uppercase tracking-wider mb-1">Skipped</p>
+              <p className="text-sm font-black text-amber-600">{progressState.skipped}</p>
+            </div>
+          </div>
+          
+          {!progressState.isActive && (
+            <div className="pt-3 mt-3 border-t border-indigo-100 flex flex-wrap gap-4 text-xs font-medium text-slate-600">
+              <p><span className="font-bold text-slate-800">Total Parsed:</span> {progressState.totalParsed}</p>
+              {progressState.timeTaken && (
+                <p><span className="font-bold text-slate-800">Time Taken:</span> {progressState.timeTaken}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
