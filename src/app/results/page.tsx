@@ -57,7 +57,7 @@ export default function ResultsPage() {
   };
 
   const handleRollNumberChange = (value: string) => {
-    setRoll(value.toUpperCase());
+    setRoll(value);
   };
 
   const fetchAvailableSemesters = async () => {

@@ -54,7 +54,7 @@ const CheckGpaPage = () => {
 
 
   const handleRollNumberChange = (value: string) => {
-    setRoll(value.toUpperCase());
+    setRoll(value);
   };
 
   const fetchCGPA = async () => {

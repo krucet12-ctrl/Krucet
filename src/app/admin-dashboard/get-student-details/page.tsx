@@ -501,7 +501,7 @@ export default function GetStudentDetailsPage() {
                     type="text"
                     placeholder="Enter Roll Number (e.g. Y22CSE279063)"
                     value={rollNo}
-                    onChange={e => setRollNo(e.target.value.toUpperCase())}
+                    onChange={e => setRollNo(e.target.value)}
                     className="input-premium uppercase font-mono"
                     required
                   />
