@@ -76,9 +76,7 @@ export async function POST(req: NextRequest) {
       }
 
       const total = Number(subInfo.total || 0);
-      const pass  = subInfo.pass !== undefined
-        ? subInfo.pass
-        : isSubjectPassed(Number(subInfo.intMarks || 0), Number(subInfo.extMarks || 0), total, maxMarks);
+      const pass = isSubjectPassed(Number(subInfo.intMarks || 0), Number(subInfo.extMarks || 0), total, maxMarks);
 
       // Re-compute grade using correct maxMarks (overrides any stale stored value)
       const grade = getGrade(total, pass, maxMarks);

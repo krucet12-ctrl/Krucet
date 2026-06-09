@@ -80,13 +80,8 @@ export async function POST(req: NextRequest) {
       const computedTotal = Number(resultData.total) || internalMarks + externalMarks;
       const resultMaxMarks = maxMarks || Number(resultData.maxMarks) || 100;
 
-      const passed = typeof resultData.pass === 'boolean'
-        ? resultData.pass
-        : isSubjectPassed(internalMarks, externalMarks, computedTotal, resultMaxMarks);
-
-      const grade = typeof resultData.grade === 'string' && resultData.grade !== '' && resultData.grade !== 'N/A'
-        ? resultData.grade
-        : getGrade(computedTotal, passed, resultMaxMarks);
+      const passed = isSubjectPassed(internalMarks, externalMarks, computedTotal, resultMaxMarks);
+      const grade = getGrade(computedTotal, passed, resultMaxMarks);
 
       return {
         code,
