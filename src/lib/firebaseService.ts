@@ -647,13 +647,12 @@ export const performConnectionHealthCheck = async (): Promise<boolean> => {
 };
 
 export const addOrUpdateCurriculum = async (
-  regulation: string,
+  curriculumKey: string,
   branch: string,
   semester: string,
   subjects: CurriculumSubject[]
 ): Promise<void> => {
-  // Use explicit 5-segment pattern requested by user
-  const curriculumRef = doc(db, 'curriculum', regulation, branch, semester, semester);
+  const curriculumRef = doc(db, 'curriculum', curriculumKey, branch.toUpperCase(), semester.toUpperCase());
   const docSnap = await getDoc(curriculumRef);
   let existingSubjects: CurriculumSubject[] = [];
 
@@ -661,13 +660,41 @@ export const addOrUpdateCurriculum = async (
     existingSubjects = docSnap.data().Subjects || [];
   }
 
+  const normalizedExisting = new Map<string, CurriculumSubject>();
+  existingSubjects.forEach((subject) => {
+    const code = normalizeSubjectCode(subject.subject_code);
+    if (code) normalizedExisting.set(code, subject);
+  });
+
   const updatedSubjects = [...existingSubjects];
-  const existingSubjectCodes = new Set(existingSubjects.map((s: CurriculumSubject) => s.subject_code));
+  const existingSubjectCodes = new Set(normalizedExisting.keys());
 
   subjects.forEach((newSubject: CurriculumSubject) => {
-    if (!existingSubjectCodes.has(newSubject.subject_code)) {
-      updatedSubjects.push(newSubject);
-      existingSubjectCodes.add(newSubject.subject_code);
+    const normalizedCode = normalizeSubjectCode(newSubject.subject_code);
+    if (!normalizedCode) return;
+
+    const existingSubject = normalizedExisting.get(normalizedCode);
+    if (!existingSubject) {
+      updatedSubjects.push({
+        subject_code: normalizedCode,
+        credits: newSubject.credits || 0,
+        max_marks: newSubject.max_marks || 100,
+      });
+      existingSubjectCodes.add(normalizedCode);
+      return;
+    }
+
+    const updatedSubject = { ...existingSubject };
+    if (newSubject.credits && newSubject.credits !== existingSubject.credits) {
+      updatedSubject.credits = newSubject.credits;
+    }
+    if (newSubject.max_marks && newSubject.max_marks !== existingSubject.max_marks) {
+      updatedSubject.max_marks = newSubject.max_marks;
+    }
+
+    const index = updatedSubjects.findIndex((subject) => normalizeSubjectCode(subject.subject_code) === normalizedCode);
+    if (index !== -1) {
+      updatedSubjects[index] = updatedSubject;
     }
   });
 
@@ -675,7 +702,7 @@ export const addOrUpdateCurriculum = async (
   await setDoc(curriculumRef, curriculumData, { merge: true });
 
   // Update branch metadata for easy querying
-  const metadataRef = doc(db, 'curriculum', regulation, '_metadata', 'branches');
+  const metadataRef = doc(db, 'curriculum', curriculumKey, '_metadata', 'branches');
   const metadataSnap = await getDoc(metadataRef);
 
   let branchesList: string[] = [];
@@ -683,8 +710,9 @@ export const addOrUpdateCurriculum = async (
     branchesList = metadataSnap.data().list || [];
   }
 
-  if (!branchesList.includes(branch)) {
-    branchesList.push(branch);
+  const branchName = branch.toUpperCase();
+  if (!branchesList.includes(branchName)) {
+    branchesList.push(branchName);
     await setDoc(metadataRef, { list: branchesList }, { merge: true });
   }
 };

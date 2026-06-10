@@ -6,7 +6,8 @@ import {
   getRegulationForRollNumber,
   getCurriculumMaxMarks,
   computeResultFromMarks,
-  normalizeSubjectCode
+  normalizeSubjectCode,
+  addOrUpdateCurriculum
 } from '../../../lib/firebaseService';
 import { adminDb } from '../../../lib/firebase-admin';
 import { StudentData } from '../../../lib/types';
@@ -143,6 +144,7 @@ async function performBulkScrape(
 
 
   const regulation = await getRegulationForRollNumber(startRoll, courseType);
+  const curriculumKey = regulation ? `${courseType}_${regulation}` : '';
   const subjectMaxMarks = regulation ? await getCurriculumMaxMarks(courseType, regulation, department, semesterKey) : {};
 
   try {
@@ -204,6 +206,30 @@ async function performBulkScrape(
               // fallback
             }
             const studentData = convertParsedResultToStudentData(parsedResult, resultType, subjectMaxMarks);
+
+            const missingSubjects: any[] = [];
+            for (const subCode in studentData.subjectResults) {
+              const normalizedCode = normalizeSubjectCode(subCode);
+              if (!subjectMaxMarks[normalizedCode]) {
+                const subjectInfo = studentData.subjectResults[subCode];
+                missingSubjects.push({
+                  subject_code: normalizedCode,
+                  credits: subjectInfo.credits || 0,
+                  max_marks: subjectInfo.maxMarks || 100,
+                });
+              }
+            }
+
+            if (missingSubjects.length > 0 && curriculumKey && semesterKey) {
+              await addOrUpdateCurriculum(curriculumKey, department, semesterKey, missingSubjects);
+              missingSubjects.forEach((subject) => {
+                subjectMaxMarks[subject.subject_code] = {
+                  maxMarks: subject.max_marks,
+                  credits: subject.credits,
+                };
+              });
+            }
+
             await saveStudentResultAdmin(studentData, subjectMaxMarks, { ...meta, courseType: rollCourseType } as any, currentBatch);
             
             rollStatus[rollNo] = 'success';
