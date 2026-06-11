@@ -13,7 +13,7 @@ interface SubjectEntry {
   maxMarks: number;
 }
 
-const MAX_MARKS_OPTIONS = [50,100,200] as const;
+const MAX_MARKS_OPTIONS = [30, 50, 100, 200] as const;
 
 
 
@@ -91,7 +91,7 @@ export default function ManageCurriculumPage() {
     // Validate values
     const hasInvalidMarks = subjects.some(s => !MAX_MARKS_OPTIONS.includes(s.maxMarks as any));
     if (hasInvalidMarks) {
-      setMessage({ text: 'Max Marks must be one of: 50, 75, 100, 150, 200.', type: 'error' });
+      setMessage({ text: `Max Marks must be one of: ${MAX_MARKS_OPTIONS.join(', ')}.`, type: 'error' });
       return;
     }
 
