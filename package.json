@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:grading": "ts-node ./scripts/test-grading.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^1.6.1",
@@ -29,6 +30,7 @@
     "eslint": "^9.10.0",
     "eslint-config-next": "^16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "ts-node": "^10.9.1"
   }
 }

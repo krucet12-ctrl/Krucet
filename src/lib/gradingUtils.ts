@@ -119,20 +119,34 @@ export const getGrade = (totalMarks: number, passed: boolean, maxMarks: number =
  * @param maxMarks Maximum marks (defaults to 100)
  * @returns True if passed, false otherwise
  */
-export const isSubjectPassed = (intMarks: number, extMarks: number, totalMarks: number, maxMarks: number = 100): boolean => {
-  const passThreshold = maxMarks * 0.4; // 40% of maxMarks
+export const requiredExternalMarks = (intMarks: number): number => {
+  // Normalize internal marks to valid range 0..25
+  const im = Number.isFinite(intMarks) ? Math.max(0, Math.min(25, Math.round(intMarks))) : 0;
+  const deficit = Math.max(0, 15 - im);
+  // Base external requirement is 25; add any deficit from internal shortfall
+  const req = 25 + deficit;
+  // External is out of 75; required external will always be between 25 and 40 for valid internal inputs
+  return Math.min(75, Math.max(0, req));
+};
 
-  // For 100-mark subjects: enforce int+ext component rule
-  // Internal is scored out of 30, external out of 70; pass requires total >= 40
-  // with the constraint that ext >= (40 - int) when int <= 15.
+/**
+ * Determines pass/fail for 100-mark subjects according to rules:
+ * - RequiredExternal = 25 + max(0, 15 - InternalMarks)
+ * - Student passes iff ExternalMarks >= RequiredExternal
+ *
+ * For non-100 maxMarks, uses a simple 40% total threshold.
+ */
+export const isSubjectPassed = (
+  intMarks: number,
+  extMarks: number,
+  totalMarks: number,
+  maxMarks: number = 100
+): boolean => {
   if (maxMarks === 100) {
-    if (intMarks >= 0 && intMarks <= 15) {
-      const requiredExt = 40 - intMarks;
-      return extMarks >= requiredExt;
-    }
-    return totalMarks >= passThreshold;
+    const requiredExt = requiredExternalMarks(intMarks);
+    return Number.isFinite(extMarks) && extMarks >= requiredExt;
   }
 
-  // For all other maxMarks values: simple 40% threshold
-  return totalMarks >= passThreshold;
+  const passThreshold = maxMarks * 0.4; // 40% of maxMarks
+  return Number.isFinite(totalMarks) && totalMarks >= passThreshold;
 };

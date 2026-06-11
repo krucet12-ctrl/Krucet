@@ -30,17 +30,17 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
   };
 
   if (isPrint) {
-    // Print variant - returns HTML string compatible with getDocumentHTML
-    const headers = showInternalExternal
-      ? `<th style="width:15%">Sub Code</th>
-         <th style="width:20%">Subject Name</th>
-         <th style="width:8%">Max</th>
-         <th style="width:8%">Internal</th>
-         <th style="width:8%">External</th>
-         <th style="width:8%">Total</th>
-         <th style="width:8%">Grade</th>
-         <th style="width:8%">Credits</th>
-         <th style="width:9%">Status</th>`
+   // Print variant - returns HTML string compatible with getDocumentHTML
+   const headers = showInternalExternal
+    ? `<th style="width:15%">Sub Code</th>
+      <th style="width:20%">Subject Name</th>
+      <th style="width:8%">Max</th>
+      <th style="width:8%">External</th>
+      <th style="width:8%">Internal</th>
+      <th style="width:8%">Total</th>
+      <th style="width:8%">Grade</th>
+      <th style="width:8%">Credits</th>
+      <th style="width:9%">Status</th>`
       : `<th style="width:15%">Sub Code</th>
          <th style="width:25%">Subject Name</th>
          <th style="width:10%">Max Marks</th>
@@ -58,8 +58,8 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
           <td class="mono" style="font-weight:600">${res.code}</td>
           <td style="text-align:left;font-size:10px">${res.name || '—'}</td>
           <td class="center bold">${maxMarks}</td>
-          <td class="center">${res.intMarks ?? '—'}</td>
           <td class="center">${res.extMarks ?? '—'}</td>
+          <td class="center">${res.intMarks ?? '—'}</td>
           <td class="center bold">${res.total}</td>
           <td class="center bold" style="color:${!res.pass ? statusColor : ''}">${res.grade}</td>
           <td class="center">${res.credits}</td>
@@ -94,12 +94,19 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
               <th className="px-6 py-5 text-left font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[200px]">
                 Subject Name
               </th>
-              <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[100px]">
-                Max Marks
-              </th>
-              <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[120px]">
-                Obtained
-              </th>
+              {showInternalExternal ? (
+                <>
+                  <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[80px]">Max</th>
+                  <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[100px]">External</th>
+                  <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[100px]">Internal</th>
+                  <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[120px]">Total</th>
+                </>
+              ) : (
+                <>
+                  <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[100px]">Max Marks</th>
+                  <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[120px]">Obtained</th>
+                </>
+              )}
               <th className="px-6 py-5 text-center font-black text-slate-600 text-[11px] uppercase tracking-widest min-w-[90px]">
                 Credits
               </th>
@@ -125,12 +132,19 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
                 <td className="px-6 py-5 text-slate-700 text-sm">
                   {res.name || '—'}
                 </td>
-                <td className="px-6 py-5 text-center text-slate-900 font-black">
-                  {res.maxMarks ?? 100}
-                </td>
-                <td className="px-6 py-5 text-center text-slate-900 font-black text-base">
-                  {res.total}
-                </td>
+                {showInternalExternal ? (
+                  <>
+                    <td className="px-6 py-5 text-center text-slate-900 font-black">{res.maxMarks ?? 100}</td>
+                    <td className="px-6 py-5 text-center text-slate-900 font-black">{res.extMarks ?? '—'}</td>
+                    <td className="px-6 py-5 text-center text-slate-900 font-black">{res.intMarks ?? '—'}</td>
+                    <td className="px-6 py-5 text-center text-slate-900 font-black text-base">{res.total}</td>
+                  </>
+                ) : (
+                  <>
+                    <td className="px-6 py-5 text-center text-slate-900 font-black">{res.maxMarks ?? 100}</td>
+                    <td className="px-6 py-5 text-center text-slate-900 font-black text-base">{res.total}</td>
+                  </>
+                )}
                 <td className="px-6 py-5 text-center text-slate-900 font-black">
                   {res.credits}
                 </td>

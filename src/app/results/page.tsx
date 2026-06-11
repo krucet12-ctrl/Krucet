@@ -41,6 +41,7 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+  const hasIntExt = results.some(r => r.intMarks !== undefined || r.extMarks !== undefined);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -158,14 +159,12 @@ export default function ResultsPage() {
     const maxMarks = results.length * 100;
     const overallResult = results.every(r => r.pass) ? 'PASS' : 'FAIL';
 
-    const hasIntExt = results.some(r => r.intMarks !== undefined || r.extMarks !== undefined);
-
     const tableHeaders = hasIntExt
       ? `<th style="width:12%">Sub Code</th>
          <th style="width:22%">Subject Name</th>
          <th style="width:8%">Max</th>
-         <th style="width:8%">Internal</th>
          <th style="width:8%">External</th>
+         <th style="width:8%">Internal</th>
          <th style="width:8%">Total</th>
          <th style="width:8%">Grade</th>
          <th style="width:8%">Credits</th>
@@ -186,8 +185,8 @@ export default function ResultsPage() {
           <td class="mono" style="font-weight:600">${res.code}</td>
           <td style="text-align:left;font-size:10px">${res.name || '—'}</td>
           <td class="center bold">${max}</td>
-          <td class="center">${res.intMarks ?? '—'}</td>
           <td class="center">${res.extMarks ?? '—'}</td>
+          <td class="center">${res.intMarks ?? '—'}</td>
           <td class="center bold">${res.total}</td>
           <td class="center bold" style="color:${!res.pass ? statusColor : ''}">${res.grade}</td>
           <td class="center">${res.credits}</td>
@@ -424,32 +423,8 @@ export default function ResultsPage() {
 
       {/* Results Display Area */}
       {studentInfo && (
-        <div className="animate-fade-in space-y-8 max-w-5xl mx-auto mt-8">
-          <div className="premium-card border-indigo-100/50 bg-gradient-to-br from-white to-indigo-50/10">
-            {/* Action Bar */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 border-b border-slate-100 pb-6 gap-6 sm:gap-0">
-              <div className="flex items-center sm:items-center gap-3 sm:gap-5 w-full sm:w-auto">
-                <img src={UNIVERSITY_LOGO} alt="University Logo" className="w-12 h-12 sm:w-14 sm:h-14 object-contain shadow-sm rounded-full bg-white p-1 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-extrabold text-slate-800 text-[16px] sm:text-xl leading-[1.3] sm:leading-tight tracking-tight uppercase whitespace-normal break-words" style={{ overflowWrap: "anywhere" }}>{UNIVERSITY_NAME}</h3>
-                  <p className="text-[10px] sm:text-xs text-indigo-600 font-bold uppercase tracking-widest mt-1 opacity-80 whitespace-normal break-words">{COLLEGE_NAME}</p>
-                </div>
-              </div>
-              {!isMobile ? (
-                <button
-                  onClick={handlePrintTable}
-                  disabled={!semester}
-                  className={`btn-primary print-btn text-sm px-6 py-3 flex items-center gap-2.5 transition-all ${!semester ? 'opacity-50 cursor-not-allowed' : 'shadow-indigo-200/50 shadow-lg hover:shadow-indigo-300 hover:-translate-y-0.5'}`}
-                >
-                  <span className="text-lg">🎓</span>
-                  Download Memo
-                </button>
-              ) : (
-                <div className="text-xs text-amber-600 font-semibold bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
-                  Printing is available only on desktop for better formatting.
-                </div>
-              )}
-            </div>
+        <div className="animate-fade-in space-y-8 w-full mt-8">
+          <div className="premium-card border-indigo-100/50 bg-gradient-to-br from-white to-indigo-50/10 w-full">
 
             {/* Information Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 border border-slate-100 rounded-3xl overflow-hidden mb-10 shadow-sm bg-white">
@@ -495,7 +470,7 @@ export default function ResultsPage() {
 
               <div ref={tableRef}>
                 {semester ? (
-                  <ResultsTable results={results} variant="screen" />
+                  <ResultsTable results={results} variant="screen" showInternalExternal={hasIntExt} />
                 ) : (
                   <div className="text-center p-12 bg-slate-50/50 rounded-3xl border border-slate-100 mt-6 shadow-sm">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-slate-100">
